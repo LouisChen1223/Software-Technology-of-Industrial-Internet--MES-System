@@ -72,7 +72,7 @@ python init_db.py
 ### 5. 运行服务
 
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+python run.py
 ```
 
 ### 6. 访问 API 文档
