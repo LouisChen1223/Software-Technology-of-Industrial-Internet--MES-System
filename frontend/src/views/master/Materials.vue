@@ -13,7 +13,11 @@
       <el-table-column prop="code" label="编码" width="140"/>
       <el-table-column prop="name" label="名称"/>
       <el-table-column prop="spec" label="规格"/>
-      <el-table-column prop="uom" label="单位" width="80"/>
+      <el-table-column label="单位" width="120">
+        <template #default="{ row }">
+          {{ uomCode(row.uom) }}
+        </template>
+      </el-table-column>
       <el-table-column prop="type" label="类型" width="120"/>
       <el-table-column label="操作" width="160">
         <template #default="{ row }">
@@ -28,7 +32,11 @@
         <el-form-item label="编码"><el-input v-model="form.code"/></el-form-item>
         <el-form-item label="名称"><el-input v-model="form.name"/></el-form-item>
         <el-form-item label="规格"><el-input v-model="form.spec"/></el-form-item>
-        <el-form-item label="单位"><el-input v-model="form.uom"/></el-form-item>
+        <el-form-item label="单位">
+          <el-select v-model="form.uom" filterable placeholder="请选择单位" style="width:100%">
+            <el-option v-for="u in uoms" :key="u.id" :label="u.code + (u.name ? (' - ' + u.name) : '')" :value="String(u.id)" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="类型"><el-select v-model="form.type"><el-option value="原材料"/><el-option value="半成品"/><el-option value="成品"/><el-option value="耗材"/></el-select></el-form-item>
         <el-form-item label="启用"><el-switch v-model="form.active"/></el-form-item>
       </el-form>
@@ -42,18 +50,27 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import type { Material } from '@/types/master'
-import { materialApi } from '@/api/masterData'
+import type { Material, Uom } from '@/types/master'
+import { materialApi, uomApi } from '@/api/masterData'
+import { ElMessageBox } from 'element-plus'
 
 const list = ref<Material[]>([])
 const q = ref('')
 const dlg = ref(false)
-const form = reactive<Partial<Material>>({ active: true, uom: 'PCS' })
+const form = reactive<Partial<Material>>({ active: true, uom: '' })
+const uoms = ref<Uom[]>([])
+
+function uomCode(val?: string) {
+  if (!val) return ''
+  const item = uoms.value.find(x => String(x.id) === String(val))
+  return item ? item.code : val
+}
 
 const filtered = computed(() => q.value ? list.value.filter(x => (x.code + x.name + (x.spec||'')).includes(q.value)) : list.value)
 
 async function load() {
   try {
+    uoms.value = await uomApi.list()
     list.value = await materialApi.list()
   } catch (error) {
     console.error('加载物料失败:', error)
@@ -61,7 +78,8 @@ async function load() {
 }
 
 function openAdd() {
-  Object.assign(form, { id: undefined, code:'', name:'', spec:'', uom:'PCS', type:'原材料', active:true })
+  const defaultUom = uoms.value.length ? String(uoms.value[0].id) : ''
+  Object.assign(form, { id: undefined, code:'', name:'', spec:'', uom: defaultUom, type:'原材料', active:true })
   dlg.value = true
 }
 
@@ -71,6 +89,15 @@ function edit(row: Material) {
 }
 
 async function remove(row: Material) {
+  try {
+    await ElMessageBox.confirm('确认删除该物料？删除后不可恢复。', '提示', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
   try {
     await materialApi.remove(row.id)
     await load()

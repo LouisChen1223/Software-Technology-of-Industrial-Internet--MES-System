@@ -65,6 +65,7 @@
 import { ref, computed, onMounted } from 'vue'
 import type { Routing, RoutingOp } from '@/types/master'
 import { routingApi, operationApi } from '@/api/masterData'
+import { ElMessageBox } from 'element-plus'
 
 const list = ref<Routing[]>([])
 const current = ref<Routing | null>(null)
@@ -127,16 +128,33 @@ onMounted(() => {
 function openAddOp(){ if(!current.value) return; const seq = (current.value.ops?.length || 0) + 1; opForm.value = { seq, operationCode: '', operationName: '' } as any; opFormMode.value='add'; dlgOp.value = true }
 function openEditOp(){ if(!current.value || !currentOp.value) return; opForm.value = { ...currentOp.value } as any; opFormMode.value='edit'; dlgOp.value = true }
 function syncOpName(){ const opMeta = opList.value.find(o => o.code === opForm.value.operationCode); opForm.value.operationName = opMeta ? opMeta.name : '' }
-function saveOp(){ if(!current.value) return; const opsArr = [...(current.value.ops||[])]; if (opFormMode.value==='add') { opsArr.push({ ...opForm.value }) } else { const idx = opsArr.findIndex(x => x.seq===opForm.value.seq); if (idx>=0) opsArr[idx] = { ...opForm.value } }
+async function saveOp(){ if(!current.value) return; const opsArr = [...(current.value.ops||[])]; if (opFormMode.value==='add') { opsArr.push({ ...opForm.value }) } else { const idx = opsArr.findIndex(x => x.seq===opForm.value.seq); if (idx>=0) opsArr[idx] = { ...opForm.value } }
   // 规范化序号
   opsArr.sort((a,b)=>a.seq-b.seq).forEach((x,i)=>x.seq=i+1)
-  const newObj = { ...current.value, ops: opsArr } as Routing; routingApi.upsert(newObj); list.value = routingApi.list(); select(newObj); dlgOp.value = false }
-function removeOp(){ if(!current.value || !currentOp.value) return; const opsArr = (current.value.ops||[]).filter(x => x.seq !== currentOp.value!.seq); opsArr.forEach((x,i)=>x.seq=i+1); const newObj = { ...current.value, ops: opsArr } as Routing; routingApi.upsert(newObj); list.value = routingApi.list(); select(newObj) }
+  const newObj = { ...current.value, ops: opsArr } as Routing; await routingApi.upsert(newObj); list.value = await routingApi.list(); select(newObj); dlgOp.value = false }
+async function removeOp(){
+  if(!current.value || !currentOp.value) return;
+  try {
+    await ElMessageBox.confirm('确认删除该工序？删除后不可恢复。', '提示', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+  const opsArr = (current.value.ops||[]).filter(x => x.seq !== currentOp.value!.seq)
+  opsArr.forEach((x,i)=>x.seq=i+1)
+  const newObj = { ...current.value, ops: opsArr } as Routing
+  await routingApi.upsert(newObj)
+  list.value = await routingApi.list()
+  select(newObj)
+}
 const canMoveUp = computed(()=> !!current.value && !!currentOp.value && currentOp.value.seq>1)
 const canMoveDown = computed(()=> !!current.value && !!currentOp.value && currentOp.value.seq < (current.value?.ops?.length||0))
 function moveUp(){ if(!current.value || !currentOp.value || currentOp.value.seq<=1) return; swap(currentOp.value.seq, currentOp.value.seq-1) }
 function moveDown(){ if(!current.value || !currentOp.value) return; const last = current.value.ops?.length||0; if(currentOp.value.seq>=last) return; swap(currentOp.value.seq, currentOp.value.seq+1) }
-function swap(a: number, b: number){ if(!current.value) return; const opsArr = [...(current.value.ops||[])]; const ia = opsArr.findIndex(x=>x.seq===a); const ib = opsArr.findIndex(x=>x.seq===b); if(ia<0||ib<0) return; const ta = { ...opsArr[ia], seq: b }; const tb = { ...opsArr[ib], seq: a }; opsArr[ia]=tb; opsArr[ib]=ta; opsArr.sort((x,y)=>x.seq-y.seq); const newObj = { ...current.value, ops: opsArr } as Routing; routingApi.upsert(newObj); list.value = routingApi.list(); select(newObj); currentOp.value = opsArr.find(x=>x.seq===b) || null }
+async function swap(a: number, b: number){ if(!current.value) return; const opsArr = [...(current.value.ops||[])]; const ia = opsArr.findIndex(x=>x.seq===a); const ib = opsArr.findIndex(x=>x.seq===b); if(ia<0||ib<0) return; const ta = { ...opsArr[ia], seq: b }; const tb = { ...opsArr[ib], seq: a }; opsArr[ia]=tb; opsArr[ib]=ta; opsArr.sort((x,y)=>x.seq-y.seq); const newObj = { ...current.value, ops: opsArr } as Routing; await routingApi.upsert(newObj); list.value = await routingApi.list(); select(newObj); currentOp.value = opsArr.find(x=>x.seq===b) || null }
 </script>
 
 <style scoped>
