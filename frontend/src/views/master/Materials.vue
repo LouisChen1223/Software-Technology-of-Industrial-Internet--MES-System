@@ -34,7 +34,7 @@
         <el-form-item label="规格"><el-input v-model="form.spec"/></el-form-item>
         <el-form-item label="单位">
           <el-select v-model="form.uom" filterable placeholder="请选择单位" style="width:100%">
-            <el-option v-for="u in uoms" :key="u.id" :label="u.code + (u.name ? (' - ' + u.name) : '')" :value="String(u.id)" />
+            <el-option v-for="u in activeUoms" :key="u.id" :label="u.code + (u.name ? (' - ' + u.name) : '')" :value="String(u.id)" />
           </el-select>
         </el-form-item>
         <el-form-item label="类型"><el-select v-model="form.type"><el-option value="原材料"/><el-option value="半成品"/><el-option value="成品"/><el-option value="耗材"/></el-select></el-form-item>
@@ -59,6 +59,7 @@ const q = ref('')
 const dlg = ref(false)
 const form = reactive<Partial<Material>>({ active: true, uom: '' })
 const uoms = ref<Uom[]>([])
+const activeUoms = computed(() => uoms.value.filter(u => !!u.active))
 
 function uomCode(val?: string) {
   if (!val) return ''
@@ -78,7 +79,7 @@ async function load() {
 }
 
 function openAdd() {
-  const defaultUom = uoms.value.length ? String(uoms.value[0].id) : ''
+  const defaultUom = activeUoms.value.length ? String(activeUoms.value[0].id) : ''
   Object.assign(form, { id: undefined, code:'', name:'', spec:'', uom: defaultUom, type:'原材料', active:true })
   dlg.value = true
 }

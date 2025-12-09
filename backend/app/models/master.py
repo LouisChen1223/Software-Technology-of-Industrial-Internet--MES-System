@@ -13,6 +13,8 @@ class UOM(Base):
     code = Column(String(50), unique=True, nullable=False, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text)
+    precision = Column(Float, default=0)
+    active = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

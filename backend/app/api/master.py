@@ -137,6 +137,14 @@ def delete_warehouse(warehouse_id: int, db: Session = Depends(get_db)):
 @router.post("/materials", response_model=MaterialResponse, tags=["Master Data"])
 def create_material(material: MaterialCreate, db: Session = Depends(get_db)):
     """创建物料"""
+    # 校验：禁止使用未启用的计量单位
+    if material.uom_id is not None:
+        uom = db.query(UOM).filter(UOM.id == material.uom_id).first()
+        if not uom:
+            raise HTTPException(status_code=400, detail="计量单位不存在")
+        # active 列为 0 表示未启用
+        if getattr(uom, "active", 1) == 0:
+            raise HTTPException(status_code=400, detail="计量单位未启用，不能用于物料")
     db_material = Material(**material.dict())
     db.add(db_material)
     db.commit()
@@ -174,7 +182,17 @@ def update_material(material_id: int, material: MaterialUpdate, db: Session = De
     if not db_material:
         raise HTTPException(status_code=404, detail="Material not found")
     
-    for key, value in material.dict(exclude_unset=True).items():
+    update_data = material.dict(exclude_unset=True)
+    # 若更新了计量单位，禁止选择未启用的计量单位
+    new_uom_id = update_data.get("uom_id")
+    if new_uom_id is not None:
+        uom = db.query(UOM).filter(UOM.id == new_uom_id).first()
+        if not uom:
+            raise HTTPException(status_code=400, detail="计量单位不存在")
+        if getattr(uom, "active", 1) == 0:
+            raise HTTPException(status_code=400, detail="计量单位未启用，不能用于物料")
+
+    for key, value in update_data.items():
         setattr(db_material, key, value)
     
     db.commit()

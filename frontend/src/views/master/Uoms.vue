@@ -28,7 +28,9 @@
       <el-form :model="form" label-width="90px">
         <el-form-item label="编码"><el-input v-model="form.code"/></el-form-item>
         <el-form-item label="名称"><el-input v-model="form.name"/></el-form-item>
-        <el-form-item label="精度"><el-input-number v-model="(form as any).precision" :min="0" :max="6"/></el-form-item>
+        <el-form-item label="精度">
+          <el-input v-model="(form as any).precision" placeholder="请输入精度（可为整数或小数）" />
+        </el-form-item>
         <el-form-item label="启用"><el-switch v-model="(form as any).active"/></el-form-item>
       </el-form>
       <template #footer>
@@ -65,7 +67,8 @@ function openAdd() {
 }
 
 function edit(row: Uom) {
-  form.value = { ...row } as any
+  // 保证 active 为布尔值，避免 el-switch 默认关闭
+  form.value = { ...row, active: !!(row as any).active } as any
   dlg.value = true
 }
 
@@ -80,8 +83,14 @@ async function remove(id: number) {
 
 async function save() {
   try {
-    const obj = { ...form.value } as Uom
-    await uomApi.upsert(obj)
+    // 将精度转换为数字（支持整数与小数）
+    const obj = { ...form.value } as any
+    if (obj.precision !== undefined) {
+      const n = Number(obj.precision)
+      obj.precision = Number.isFinite(n) ? n : 0
+    }
+    const payload = obj as Uom
+    await uomApi.upsert(payload)
     dlg.value = false
     await load()
   } catch (error) {

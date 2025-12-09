@@ -20,6 +20,20 @@ def init_db():
     
     db = SessionLocal()
     try:
+        # 兼容已有数据库：若 uoms 表缺列，强制重建该表
+        try:
+            db.execute("SELECT precision, active FROM uoms LIMIT 1")
+        except Exception:
+            print("Recreating 'uoms' table to add missing columns...")
+            try:
+                db.execute("DROP TABLE IF EXISTS uoms")
+                db.commit()
+            except Exception:
+                db.rollback()
+            # 仅重建 uoms 表
+            from app.models.master import UOM as _UOM
+            _UOM.__table__.create(bind=engine, checkfirst=True)
+
         # 检查是否已有数据
         if db.query(UOM).first():
             print("Database already has data. Skipping sample data insertion.")

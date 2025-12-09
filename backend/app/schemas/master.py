@@ -8,6 +8,8 @@ class UOMBase(BaseModel):
     code: str = Field(..., max_length=50)
     name: str = Field(..., max_length=100)
     description: Optional[str] = None
+    precision: Optional[float] = 0
+    active: Optional[int] = 1
 
 
 class UOMCreate(UOMBase):
@@ -18,6 +20,8 @@ class UOMUpdate(BaseModel):
     code: Optional[str] = Field(None, max_length=50)
     name: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
+    precision: Optional[float] = None
+    active: Optional[int] = None
 
 
 class UOMResponse(UOMBase):

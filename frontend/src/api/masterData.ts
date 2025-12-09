@@ -3,17 +3,36 @@ import type { Material, BomHeader, BomItem, Operation, Routing, Equipment, Tooli
 
 // UOM API
 export const uomApi = {
+  // 字段映射：后端无 precision/active，前端需要展示，提供合理默认
+  toClient(u: any): Uom {
+    return {
+      id: String(u.id),
+      code: u.code,
+      name: u.name,
+      precision: u.precision ?? 0,
+      // 后端可能返回 0/1，需转为布尔
+      active: u.active === undefined ? true : !!u.active,
+    }
+  },
+  toServer(data: Partial<Uom>): any {
+    const payload: any = {}
+    if (data.code !== undefined) payload.code = data.code
+    if (data.name !== undefined) payload.name = data.name
+    if (data.precision !== undefined) payload.precision = Number(data.precision)
+    if (data.active !== undefined) payload.active = data.active ? 1 : 0
+    return payload
+  },
   async list(): Promise<Uom[]> {
     const resp = await http.get('/uoms')
-    return resp.data
+    return Array.isArray(resp.data) ? resp.data.map(this.toClient) : []
   },
   async create(data: Partial<Uom>): Promise<Uom> {
-    const resp = await http.post('/uoms', data)
-    return resp.data
+    const resp = await http.post('/uoms', this.toServer(data))
+    return this.toClient(resp.data)
   },
   async update(id: number | string, data: Partial<Uom>): Promise<Uom> {
-    const resp = await http.put(`/uoms/${id}`, data)
-    return resp.data
+    const resp = await http.put(`/uoms/${id}`, this.toServer(data))
+    return this.toClient(resp.data)
   },
   async upsert(u: Uom): Promise<Uom> {
     if (u.id) {
@@ -22,7 +41,7 @@ export const uomApi = {
       return await this.create(u)
     }
   },
-  async remove(id: number): Promise<void> {
+  async remove(id: number | string): Promise<void> {
     await http.delete(`/uoms/${id}`)
   }
 }
