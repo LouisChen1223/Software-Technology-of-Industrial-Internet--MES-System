@@ -5,8 +5,9 @@
 from app.database import engine, Base, SessionLocal
 from app.models.master import (
     UOM, Warehouse, Material, BOM, BOMItem,
-    Operation, Equipment, Tooling, Personnel, Shift, Routing, RoutingItem
+    Operation, Equipment, Tooling, Personnel, Shift, Routing, RoutingItem,
 )
+from app.models.material_type import MaterialType
 from app.models.workorder import WorkOrder, WorkOrderOperation, WorkReport, WIPTracking
 from app.models.inventory import Inventory, MaterialTransaction, MaterialPick, MaterialPickItem
 from datetime import datetime, timedelta
