@@ -65,7 +65,6 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="类型"><el-select v-model="form.type"><el-option value="原材料"/><el-option value="半成品"/><el-option value="成品"/><el-option value="耗材"/></el-select></el-form-item>
         <el-form-item label="启用"><el-switch v-model="form.active" /></el-form-item>
       </el-form>
       <template #footer>
