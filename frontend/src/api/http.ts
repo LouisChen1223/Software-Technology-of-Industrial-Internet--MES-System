@@ -18,12 +18,11 @@ http.interceptors.request.use((config) => {
     url.searchParams.set('_ts', String(Date.now()))
     // axios 接受相对路径，保留 pathname+search
     config.url = `${url.pathname}${url.search}`
-    // 同时设置 no-cache 头以强化不缓存策略
-    config.headers = {
-      ...(config.headers || {}),
-      'Cache-Control': 'no-cache',
-      Pragma: 'no-cache'
-    }
+    // 同时设置 no-cache 头以强化不缓存策略（兼容 AxiosHeaders 类型）
+    const h: any = config.headers || {}
+    h['Cache-Control'] = 'no-cache'
+    h['Pragma'] = 'no-cache'
+    config.headers = h
   }
   return config
 })
