@@ -34,6 +34,60 @@ def init_db():
             from app.models.master import UOM as _UOM
             _UOM.__table__.create(bind=engine, checkfirst=True)
 
+        # 兼容已有数据库：若 warehouses 表缺少 active 列，尝试添加或重建
+        try:
+            db.execute("SELECT active FROM warehouses LIMIT 1")
+        except Exception:
+            print("Altering 'warehouses' table to add 'active' column...")
+            try:
+                db.execute("ALTER TABLE warehouses ADD COLUMN active INTEGER DEFAULT 1")
+                db.commit()
+            except Exception:
+                db.rollback()
+                # 回退方案：重建表（会丢失数据，谨慎使用）
+                print("Failed to alter warehouses; recreating table...")
+                from app.models.master import Warehouse as _Warehouse
+                _Warehouse.__table__.create(bind=engine, checkfirst=True)
+
+        # 兼容已有数据库：若 materials 表缺少 active 列，尝试添加或重建
+        try:
+            db.execute("SELECT active FROM materials LIMIT 1")
+        except Exception:
+            print("Altering 'materials' table to add 'active' column...")
+            try:
+                db.execute("ALTER TABLE materials ADD COLUMN active INTEGER DEFAULT 1")
+                db.commit()
+            except Exception:
+                db.rollback()
+                from app.models.master import Material as _Material
+                _Material.__table__.create(bind=engine, checkfirst=True)
+
+        # 兼容已有数据库：为 personnel 增加 shift_code 列（若不存在）
+        try:
+            db.execute("SELECT shift_code FROM personnel LIMIT 1")
+        except Exception:
+            print("Altering 'personnel' table to add 'shift_code' column...")
+            try:
+                db.execute("ALTER TABLE personnel ADD COLUMN shift_code VARCHAR(50)")
+                db.commit()
+            except Exception:
+                db.rollback()
+                from app.models.master import Personnel as _Personnel
+                _Personnel.__table__.create(bind=engine, checkfirst=True)
+
+        # 兼容已有数据库：若 shifts 表缺少 active 列，尝试添加或重建
+        try:
+            db.execute("SELECT active FROM shifts LIMIT 1")
+        except Exception:
+            print("Altering 'shifts' table to add 'active' column...")
+            try:
+                db.execute("ALTER TABLE shifts ADD COLUMN active INTEGER DEFAULT 1")
+                db.commit()
+            except Exception:
+                db.rollback()
+                from app.models.master import Shift as _Shift
+                _Shift.__table__.create(bind=engine, checkfirst=True)
+
         # 检查是否已有数据
         if db.query(UOM).first():
             print("Database already has data. Skipping sample data insertion.")
@@ -55,9 +109,9 @@ def init_db():
         # 2. 仓库
         print("- Creating warehouses...")
         warehouses = [
-            Warehouse(code="WH001", name="原料仓", location="A区", warehouse_type="原料仓", manager="张三"),
-            Warehouse(code="WH002", name="成品仓", location="B区", warehouse_type="成品仓", manager="李四"),
-            Warehouse(code="WH003", name="在制品仓", location="C区", warehouse_type="在制品仓", manager="王五"),
+            Warehouse(code="WH001", name="原料仓", location="A区", warehouse_type="原料仓", manager="张三", active=1),
+            Warehouse(code="WH002", name="成品仓", location="B区", warehouse_type="成品仓", manager="李四", active=1),
+            Warehouse(code="WH003", name="在制品仓", location="C区", warehouse_type="在制品仓", manager="王五", active=1),
         ]
         db.add_all(warehouses)
         db.commit()
@@ -65,12 +119,12 @@ def init_db():
         # 3. 物料
         print("- Creating materials...")
         materials = [
-            Material(code="MAT001", name="无人机机架", specification="碳纤维", material_type="原料", uom_id=1, unit_price=150.0),
-            Material(code="MAT002", name="电机", specification="2312 1400KV", material_type="原料", uom_id=1, unit_price=80.0),
-            Material(code="MAT003", name="螺旋桨", specification="8寸", material_type="原料", uom_id=1, unit_price=20.0),
-            Material(code="MAT004", name="飞控", specification="F4", material_type="原料", uom_id=1, unit_price=200.0),
-            Material(code="MAT005", name="电池", specification="4S 5000mAh", material_type="原料", uom_id=1, unit_price=180.0),
-            Material(code="PROD001", name="四轴无人机", specification="标准版", material_type="成品", uom_id=1, unit_price=1000.0),
+            Material(code="MAT001", name="无人机机架", specification="碳纤维", material_type="原料", uom_id=1, unit_price=150.0, active=1),
+            Material(code="MAT002", name="电机", specification="2312 1400KV", material_type="原料", uom_id=1, unit_price=80.0, active=1),
+            Material(code="MAT003", name="螺旋桨", specification="8寸", material_type="原料", uom_id=1, unit_price=20.0, active=1),
+            Material(code="MAT004", name="飞控", specification="F4", material_type="原料", uom_id=1, unit_price=200.0, active=1),
+            Material(code="MAT005", name="电池", specification="4S 5000mAh", material_type="原料", uom_id=1, unit_price=180.0, active=1),
+            Material(code="PROD001", name="四轴无人机", specification="标准版", material_type="成品", uom_id=1, unit_price=1000.0, active=1),
         ]
         db.add_all(materials)
         db.commit()
@@ -83,6 +137,7 @@ def init_db():
             product_id=6,  # PROD001
             version="1.0",
             quantity=1,
+            is_active=1,
             description="四轴无人机物料清单"
         )
         db.add(bom)
@@ -142,9 +197,9 @@ def init_db():
         # 9. 班次
         print("- Creating shifts...")
         shifts = [
-            Shift(code="SHIFT1", name="早班", start_time="08:00", end_time="16:00"),
-            Shift(code="SHIFT2", name="中班", start_time="16:00", end_time="00:00"),
-            Shift(code="SHIFT3", name="晚班", start_time="00:00", end_time="08:00"),
+            Shift(code="SHIFT1", name="早班", start_time="08:00", end_time="16:00", active=1),
+            Shift(code="SHIFT2", name="中班", start_time="16:00", end_time="00:00", active=1),
+            Shift(code="SHIFT3", name="晚班", start_time="00:00", end_time="08:00", active=1),
         ]
         db.add_all(shifts)
         db.commit()
@@ -155,7 +210,8 @@ def init_db():
             code="RT001",
             name="四轴无人机工艺路线",
             product_id=6,
-            version="1.0"
+            version="1.0",
+            is_active=1
         )
         db.add(routing)
         db.flush()

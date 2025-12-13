@@ -30,6 +30,7 @@ class Warehouse(Base):
     warehouse_type = Column(String(50))  # 原料仓、成品仓、在制品仓等
     manager = Column(String(100))
     description = Column(Text)
+    active = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -52,6 +53,7 @@ class Material(Base):
     lead_time = Column(Integer, default=0)  # 提前期(天)
     supplier = Column(String(200))
     description = Column(Text)
+    active = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -163,6 +165,7 @@ class Personnel(Base):
     skill_level = Column(String(50))
     phone = Column(String(20))
     email = Column(String(100))
+    shift_code = Column(String(50))
     status = Column(String(20), default="active")  # active, inactive
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
@@ -178,6 +181,7 @@ class Shift(Base):
     start_time = Column(String(10), nullable=False)  # HH:MM
     end_time = Column(String(10), nullable=False)  # HH:MM
     description = Column(Text)
+    active = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

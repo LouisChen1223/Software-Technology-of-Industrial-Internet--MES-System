@@ -41,6 +41,7 @@ class WarehouseBase(BaseModel):
     warehouse_type: Optional[str] = None
     manager: Optional[str] = None
     description: Optional[str] = None
+    active: Optional[int] = 1
 
 
 class WarehouseCreate(WarehouseBase):
@@ -54,6 +55,7 @@ class WarehouseUpdate(BaseModel):
     warehouse_type: Optional[str] = None
     manager: Optional[str] = None
     description: Optional[str] = None
+    active: Optional[int] = None
 
 
 class WarehouseResponse(WarehouseBase):
@@ -77,6 +79,7 @@ class MaterialBase(BaseModel):
     lead_time: Optional[int] = 0
     supplier: Optional[str] = None
     description: Optional[str] = None
+    active: Optional[int] = 1
 
 
 class MaterialCreate(MaterialBase):
@@ -94,6 +97,7 @@ class MaterialUpdate(BaseModel):
     lead_time: Optional[int] = None
     supplier: Optional[str] = None
     description: Optional[str] = None
+    active: Optional[int] = None
 
 
 class MaterialResponse(MaterialBase):
@@ -276,6 +280,7 @@ class PersonnelBase(BaseModel):
     skill_level: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    shift_code: Optional[str] = None
     status: Optional[str] = "active"
 
 
@@ -291,6 +296,7 @@ class PersonnelUpdate(BaseModel):
     skill_level: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    shift_code: Optional[str] = None
     status: Optional[str] = None
 
 
@@ -310,6 +316,7 @@ class ShiftBase(BaseModel):
     start_time: str = Field(..., max_length=10)
     end_time: str = Field(..., max_length=10)
     description: Optional[str] = None
+    active: Optional[int] = 1
 
 
 class ShiftCreate(ShiftBase):
@@ -322,6 +329,7 @@ class ShiftUpdate(BaseModel):
     start_time: Optional[str] = Field(None, max_length=10)
     end_time: Optional[str] = Field(None, max_length=10)
     description: Optional[str] = None
+    active: Optional[int] = None
 
 
 class ShiftResponse(ShiftBase):

@@ -216,7 +216,18 @@ def delete_material(material_id: int, db: Session = Depends(get_db)):
 @router.post("/boms", response_model=BOMResponse, tags=["Master Data"])
 def create_bom(bom: BOMCreate, db: Session = Depends(get_db)):
     """创建BOM"""
+    # 约束：同一产品同一版本仅允许一个激活BOM
     bom_data = bom.dict(exclude={'items'})
+    if bom_data.get("product_id") is None:
+        raise HTTPException(status_code=400, detail="BOM缺少产品ID")
+    # 若设置为激活版本，检查是否已存在激活版本
+    if int(bom_data.get("is_active", 1)) == 1:
+        exists_active = db.query(BOM).filter(
+            BOM.product_id == bom_data["product_id"],
+            BOM.is_active == 1
+        ).first()
+        if exists_active:
+            raise HTTPException(status_code=400, detail="该产品已存在激活的BOM版本")
     db_bom = BOM(**bom_data)
     db.add(db_bom)
     db.flush()
@@ -252,9 +263,20 @@ def update_bom(bom_id: int, bom: BOMUpdate, db: Session = Depends(get_db)):
     db_bom = db.query(BOM).filter(BOM.id == bom_id).first()
     if not db_bom:
         raise HTTPException(status_code=404, detail="BOM not found")
-    
+    update_header = bom.dict(exclude_unset=True, exclude={'items'})
+    # 若更新为激活状态，需确保产品不存在其他激活版本
+    if update_header.get("is_active") is not None:
+        new_active = int(update_header["is_active"]) == 1
+        if new_active:
+            exists_active = db.query(BOM).filter(
+                BOM.product_id == (update_header.get("product_id") or db_bom.product_id),
+                BOM.is_active == 1,
+                BOM.id != bom_id
+            ).first()
+            if exists_active:
+                raise HTTPException(status_code=400, detail="该产品已存在激活的BOM版本")
     # 更新BOM表头
-    for key, value in bom.dict(exclude_unset=True, exclude={'items'}).items():
+    for key, value in update_header.items():
         setattr(db_bom, key, value)
     
     # 更新BOM明细
@@ -269,6 +291,17 @@ def update_bom(bom_id: int, bom: BOMUpdate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_bom)
     return db_bom
+
+# BOM查询：根据产品获取激活版本或指定版本
+@router.get("/boms/by-product/{product_id}", response_model=List[BOMResponse], tags=["Master Data"])
+def get_boms_by_product(product_id: int, version: str = None, active_only: int = 0, db: Session = Depends(get_db)):
+    """按产品筛选BOM，可选版本或仅激活。active_only=1时仅返回激活版本"""
+    q = db.query(BOM).filter(BOM.product_id == product_id)
+    if version:
+        q = q.filter(BOM.version == version)
+    if int(active_only) == 1:
+        q = q.filter(BOM.is_active == 1)
+    return q.all()
 
 
 @router.delete("/boms/{bom_id}", tags=["Master Data"])
@@ -446,6 +479,13 @@ def delete_tooling(tooling_id: int, db: Session = Depends(get_db)):
 @router.post("/personnel", response_model=PersonnelResponse, tags=["Master Data"])
 def create_personnel(personnel: PersonnelCreate, db: Session = Depends(get_db)):
     """创建人员"""
+    # 校验班次：若提供 shift_code，则必须存在且启用
+    if getattr(personnel, "shift_code", None):
+        shift = db.query(Shift).filter(Shift.code == personnel.shift_code).first()
+        if not shift:
+            raise HTTPException(status_code=400, detail="班次不存在")
+        if getattr(shift, "active", 1) == 0:
+            raise HTTPException(status_code=400, detail="班次未启用，不能选择")
     db_personnel = Personnel(**personnel.dict())
     db.add(db_personnel)
     db.commit()
@@ -465,8 +505,15 @@ def get_personnel(personnel_id: int, db: Session = Depends(get_db)):
     personnel = db.query(Personnel).filter(Personnel.id == personnel_id).first()
     if not personnel:
         raise HTTPException(status_code=404, detail="Personnel not found")
-    return personnel
-
+    update_data = personnel.dict(exclude_unset=True)
+    if "shift_code" in update_data and update_data["shift_code"]:
+        shift = db.query(Shift).filter(Shift.code == update_data["shift_code"]).first()
+        if not shift:
+            raise HTTPException(status_code=400, detail="班次不存在")
+        if getattr(shift, "active", 1) == 0:
+            raise HTTPException(status_code=400, detail="班次未启用，不能选择")
+    for key, value in update_data.items():
+        setattr(db_personnel, key, value)
 
 @router.put("/personnel/{personnel_id}", response_model=PersonnelResponse, tags=["Master Data"])
 def update_personnel(personnel_id: int, personnel: PersonnelUpdate, db: Session = Depends(get_db)):
@@ -552,7 +599,17 @@ def delete_shift(shift_id: int, db: Session = Depends(get_db)):
 @router.post("/routings", response_model=RoutingResponse, tags=["Master Data"])
 def create_routing(routing: RoutingCreate, db: Session = Depends(get_db)):
     """创建工艺路线"""
+    # 约束：同一产品同一版本仅允许一个激活工艺路线
     routing_data = routing.dict(exclude={'items'})
+    if routing_data.get("product_id") is None:
+        raise HTTPException(status_code=400, detail="工艺路线缺少产品ID")
+    if int(routing_data.get("is_active", 1)) == 1:
+        exists_active = db.query(Routing).filter(
+            Routing.product_id == routing_data["product_id"],
+            Routing.is_active == 1
+        ).first()
+        if exists_active:
+            raise HTTPException(status_code=400, detail="该产品已存在激活的工艺路线版本")
     db_routing = Routing(**routing_data)
     db.add(db_routing)
     db.flush()
@@ -588,9 +645,19 @@ def update_routing(routing_id: int, routing: RoutingUpdate, db: Session = Depend
     db_routing = db.query(Routing).filter(Routing.id == routing_id).first()
     if not db_routing:
         raise HTTPException(status_code=404, detail="Routing not found")
-    
+    update_header = routing.dict(exclude_unset=True, exclude={'items'})
+    if update_header.get("is_active") is not None:
+        new_active = int(update_header["is_active"]) == 1
+        if new_active:
+            exists_active = db.query(Routing).filter(
+                Routing.product_id == (update_header.get("product_id") or db_routing.product_id),
+                Routing.is_active == 1,
+                Routing.id != routing_id
+            ).first()
+            if exists_active:
+                raise HTTPException(status_code=400, detail="该产品已存在激活的工艺路线版本")
     # 更新工艺路线表头
-    for key, value in routing.dict(exclude_unset=True, exclude={'items'}).items():
+    for key, value in update_header.items():
         setattr(db_routing, key, value)
     
     # 更新工艺路线明细
@@ -605,6 +672,17 @@ def update_routing(routing_id: int, routing: RoutingUpdate, db: Session = Depend
     db.commit()
     db.refresh(db_routing)
     return db_routing
+
+# Routing查询：按产品获取工艺路线
+@router.get("/routings/by-product/{product_id}", response_model=List[RoutingResponse], tags=["Master Data"])
+def get_routings_by_product(product_id: int, version: str = None, active_only: int = 0, db: Session = Depends(get_db)):
+    """按产品筛选工艺路线，可选版本或仅激活。active_only=1时仅返回激活版本"""
+    q = db.query(Routing).filter(Routing.product_id == product_id)
+    if version:
+        q = q.filter(Routing.version == version)
+    if int(active_only) == 1:
+        q = q.filter(Routing.is_active == 1)
+    return q.all()
 
 
 @router.delete("/routings/{routing_id}", tags=["Master Data"])

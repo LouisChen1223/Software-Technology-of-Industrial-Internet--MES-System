@@ -38,7 +38,6 @@
           </el-select>
         </el-form-item>
         <el-form-item label="类型"><el-select v-model="form.type"><el-option value="原材料"/><el-option value="半成品"/><el-option value="成品"/><el-option value="耗材"/></el-select></el-form-item>
-        <el-form-item label="启用"><el-switch v-model="form.active"/></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dlg=false">取消</el-button>
@@ -57,7 +56,7 @@ import { ElMessageBox } from 'element-plus'
 const list = ref<Material[]>([])
 const q = ref('')
 const dlg = ref(false)
-const form = reactive<Partial<Material>>({ active: true, uom: '' })
+const form = reactive<Partial<Material>>({ uom: '' })
 const uoms = ref<Uom[]>([])
 const activeUoms = computed(() => uoms.value.filter(u => !!u.active))
 
@@ -80,7 +79,7 @@ async function load() {
 
 function openAdd() {
   const defaultUom = activeUoms.value.length ? String(activeUoms.value[0].id) : ''
-  Object.assign(form, { id: undefined, code:'', name:'', spec:'', uom: defaultUom, type:'原材料', active:true })
+  Object.assign(form, { id: undefined, code:'', name:'', spec:'', uom: defaultUom, type:'原材料' })
   dlg.value = true
 }
 

@@ -48,17 +48,39 @@ export const uomApi = {
 
 // Warehouse API
 export const warehouseApi = {
+  toClient(w: any): Warehouse {
+    return {
+      id: String(w.id),
+      code: w.code,
+      name: w.name,
+      type: w.warehouse_type || '',
+      address: w.location || '',
+      manager: w.manager || '',
+      // 后端无 active，默认启用
+      active: w.active === undefined ? true : !!w.active,
+    }
+  },
+  toServer(data: Partial<Warehouse>): any {
+    const payload: any = {}
+    if (data.code !== undefined) payload.code = data.code
+    if (data.name !== undefined) payload.name = data.name
+    if (data.type !== undefined) payload.warehouse_type = data.type
+    if (data.address !== undefined) payload.location = data.address
+    if (data.manager !== undefined) payload.manager = data.manager
+    if (data.active !== undefined) payload.active = data.active ? 1 : 0
+    return payload
+  },
   async list(): Promise<Warehouse[]> {
     const resp = await http.get('/warehouses')
-    return resp.data
+    return Array.isArray(resp.data) ? resp.data.map(this.toClient) : []
   },
   async create(data: Partial<Warehouse>): Promise<Warehouse> {
-    const resp = await http.post('/warehouses', data)
-    return resp.data
+    const resp = await http.post('/warehouses', this.toServer(data))
+    return this.toClient(resp.data)
   },
   async update(id: number | string, data: Partial<Warehouse>): Promise<Warehouse> {
-    const resp = await http.put(`/warehouses/${id}`, data)
-    return resp.data
+    const resp = await http.put(`/warehouses/${id}`, this.toServer(data))
+    return this.toClient(resp.data)
   },
   async upsert(w: Warehouse): Promise<Warehouse> {
     if (w.id) {
@@ -123,37 +145,70 @@ export const materialApi = {
 
 // BOM API
 export const bomApi = {
-  async headers(): Promise<BomHeader[]> {
+  async list(): Promise<BomHeader[]> {
     const resp = await http.get('/boms')
     return resp.data
   },
-  async items(bomId: number | string): Promise<BomItem[]> {
+  async detail(bomId: number | string): Promise<{ header: BomHeader; items: BomItem[] }> {
     const resp = await http.get(`/boms/${bomId}`)
-    return resp.data.items || []
+    return { header: resp.data, items: resp.data.items || [] }
   },
-  async createHeader(data: Partial<BomHeader>): Promise<BomHeader> {
-    const resp = await http.post('/boms', data)
+  async byProduct(productId: number | string, opts?: { version?: string; activeOnly?: boolean }): Promise<BomHeader[]> {
+    const params: any = {}
+    if (opts?.version) params.version = opts.version
+    if (opts?.activeOnly) params.active_only = 1
+    const resp = await http.get(`/boms/by-product/${productId}`, { params })
     return resp.data
   },
-  async addItem(bomId: number | string, item: Partial<BomItem>): Promise<BomItem> {
-    const resp = await http.post(`/boms/${bomId}/items`, item)
+  async create(payload: { code: string; name: string; product_id: number; version?: string; quantity?: number; is_active?: number; description?: string; items?: Array<{ material_id: number; quantity: number; sequence?: number; scrap_rate?: number; description?: string }> }): Promise<BomHeader> {
+    const resp = await http.post('/boms', payload)
     return resp.data
+  },
+  async update(bomId: number | string, payload: Partial<{ code: string; name: string; product_id: number; version: string; quantity: number; is_active: number; description: string; items: Array<{ material_id: number; quantity: number; sequence?: number; scrap_rate?: number; description?: string }> }>): Promise<BomHeader> {
+    const resp = await http.put(`/boms/${bomId}`, payload)
+    return resp.data
+  },
+  async remove(bomId: number | string): Promise<void> {
+    await http.delete(`/boms/${bomId}`)
   }
 }
 
 // Operation API
 export const operationApi = {
+  toClient(o: any): Operation {
+    return {
+      id: String(o.id),
+      code: o.code,
+      name: o.name,
+      description: o.description || '',
+      stdDurationMin: o.standard_time ?? 0,
+      workstationCode: o.workstation_code || '',
+      needTooling: !!o.need_tooling,
+      qualityCheck: !!o.quality_check,
+    }
+  },
+  toServer(data: Partial<Operation>): any {
+    const payload: any = {}
+    if (data.code !== undefined) payload.code = data.code
+    if (data.name !== undefined) payload.name = data.name
+    if (data.description !== undefined) payload.description = data.description
+    if (data.stdDurationMin !== undefined) payload.standard_time = Number(data.stdDurationMin)
+    if (data.workstationCode !== undefined) payload.workstation_code = data.workstationCode
+    if (data.needTooling !== undefined) payload.need_tooling = data.needTooling ? 1 : 0
+    if (data.qualityCheck !== undefined) payload.quality_check = data.qualityCheck ? 1 : 0
+    return payload
+  },
   async list(): Promise<Operation[]> {
     const resp = await http.get('/operations')
-    return resp.data
+    return Array.isArray(resp.data) ? resp.data.map(this.toClient) : []
   },
   async create(data: Partial<Operation>): Promise<Operation> {
-    const resp = await http.post('/operations', data)
-    return resp.data
+    const resp = await http.post('/operations', this.toServer(data))
+    return this.toClient(resp.data)
   },
   async update(id: number | string, data: Partial<Operation>): Promise<Operation> {
-    const resp = await http.put(`/operations/${id}`, data)
-    return resp.data
+    const resp = await http.put(`/operations/${id}`, this.toServer(data))
+    return this.toClient(resp.data)
   },
   async upsert(op: Operation): Promise<Operation> {
     if (op.id) {
@@ -173,39 +228,70 @@ export const routingApi = {
     const resp = await http.get('/routings')
     return resp.data
   },
-  async create(data: Partial<Routing>): Promise<Routing> {
-    const resp = await http.post('/routings', data)
+  async byProduct(productId: number | string, opts?: { version?: string; activeOnly?: boolean }): Promise<Routing[]> {
+    const params: any = {}
+    if (opts?.version) params.version = opts.version
+    if (opts?.activeOnly) params.active_only = 1
+    const resp = await http.get(`/routings/by-product/${productId}`, { params })
     return resp.data
   },
-  async update(id: number | string, data: Partial<Routing>): Promise<Routing> {
-    const resp = await http.put(`/routings/${id}`, data)
+  async create(payload: { code: string; name: string; product_id: number; version?: string; is_active?: number; description?: string; items?: Array<{ operation_id: number; sequence: number; equipment_id?: number; standard_time?: number; setup_time?: number; description?: string }> }): Promise<Routing> {
+    const resp = await http.post('/routings', payload)
     return resp.data
   },
-  async upsert(r: Routing): Promise<Routing> {
+  async update(id: number | string, payload: Partial<{ code: string; name: string; product_id: number; version: string; is_active: number; description: string; items: Array<{ operation_id: number; sequence: number; equipment_id?: number; standard_time?: number; setup_time?: number; description?: string }> }>): Promise<Routing> {
+    const resp = await http.put(`/routings/${id}`, payload)
+    return resp.data
+  },
+  async upsert(r: any): Promise<Routing> {
     if (r.id) {
       return await this.update(r.id, r)
     } else {
       return await this.create(r)
     }
   },
-  async remove(id: number): Promise<void> {
+  async remove(id: number | string): Promise<void> {
     await http.delete(`/routings/${id}`)
   }
 }
 
 // Equipment API
 export const equipmentApi = {
+  toClient(e: any): Equipment {
+    return {
+      id: String(e.id),
+      code: e.code,
+      name: e.name,
+      type: e.equipment_type || '',
+      vendor: e.manufacturer || '',
+      lineCode: e.line_code || '',
+      workstationCode: e.workstation_code || '',
+      enabled: e.status ? e.status !== 'maintenance' && e.status !== 'fault' : true,
+      capacityPerHour: e.capacity ?? 0
+    }
+  },
+  toServer(data: Partial<Equipment>): any {
+    const payload: any = {}
+    if (data.code !== undefined) payload.code = data.code
+    if (data.name !== undefined) payload.name = data.name
+    if (data.type !== undefined) payload.equipment_type = data.type
+    if (data.vendor !== undefined) payload.manufacturer = data.vendor
+    if (data.capacityPerHour !== undefined) payload.capacity = Number(data.capacityPerHour)
+    if (data.workstationCode !== undefined) payload.workstation_code = data.workstationCode
+    if (data.enabled !== undefined) payload.status = data.enabled ? 'idle' : 'maintenance'
+    return payload
+  },
   async list(): Promise<Equipment[]> {
     const resp = await http.get('/equipment')
-    return resp.data
+    return Array.isArray(resp.data) ? resp.data.map(this.toClient) : []
   },
   async create(data: Partial<Equipment>): Promise<Equipment> {
-    const resp = await http.post('/equipment', data)
-    return resp.data
+    const resp = await http.post('/equipment', this.toServer(data))
+    return this.toClient(resp.data)
   },
   async update(id: number | string, data: Partial<Equipment>): Promise<Equipment> {
-    const resp = await http.put(`/equipment/${id}`, data)
-    return resp.data
+    const resp = await http.put(`/equipment/${id}`, this.toServer(data))
+    return this.toClient(resp.data)
   },
   async upsert(e: Equipment): Promise<Equipment> {
     if (e.id) {
@@ -221,17 +307,36 @@ export const equipmentApi = {
 
 // Tooling API
 export const toolingApi = {
+  toClient(t: any): Tooling {
+    return {
+      id: String(t.id),
+      code: t.code,
+      name: t.name,
+      type: t.tooling_type || '',
+      description: t.description || '',
+      usable: t.status ? t.status === 'available' : true
+    }
+  },
+  toServer(data: Partial<Tooling>): any {
+    const payload: any = {}
+    if (data.code !== undefined) payload.code = data.code
+    if (data.name !== undefined) payload.name = data.name
+    if (data.type !== undefined) payload.tooling_type = data.type
+    if (data.description !== undefined) payload.description = data.description
+    if (data.usable !== undefined) payload.status = data.usable ? 'available' : 'maintenance'
+    return payload
+  },
   async list(): Promise<Tooling[]> {
     const resp = await http.get('/tooling')
-    return resp.data
+    return Array.isArray(resp.data) ? resp.data.map(this.toClient) : []
   },
   async create(data: Partial<Tooling>): Promise<Tooling> {
-    const resp = await http.post('/tooling', data)
-    return resp.data
+    const resp = await http.post('/tooling', this.toServer(data))
+    return this.toClient(resp.data)
   },
   async update(id: number | string, data: Partial<Tooling>): Promise<Tooling> {
-    const resp = await http.put(`/tooling/${id}`, data)
-    return resp.data
+    const resp = await http.put(`/tooling/${id}`, this.toServer(data))
+    return this.toClient(resp.data)
   },
   async upsert(t: Tooling): Promise<Tooling> {
     if (t.id) {
@@ -247,17 +352,36 @@ export const toolingApi = {
 
 // Personnel API
 export const personApi = {
+  toClient(p: any): Person {
+    return {
+      id: String(p.id),
+      empNo: p.code,
+      name: p.name,
+      role: p.position || 'operator',
+      shiftCode: p.shift_code || '',
+      active: p.status ? p.status === 'active' : true
+    }
+  },
+  toServer(data: Partial<Person>): any {
+    const payload: any = {}
+    if (data.empNo !== undefined) payload.code = data.empNo
+    if (data.name !== undefined) payload.name = data.name
+    if (data.role !== undefined) payload.position = data.role
+    if (data.shiftCode !== undefined) payload.shift_code = data.shiftCode
+    if (data.active !== undefined) payload.status = data.active ? 'active' : 'inactive'
+    return payload
+  },
   async list(): Promise<Person[]> {
     const resp = await http.get('/personnel')
-    return resp.data
+    return Array.isArray(resp.data) ? resp.data.map(this.toClient) : []
   },
   async create(data: Partial<Person>): Promise<Person> {
-    const resp = await http.post('/personnel', data)
-    return resp.data
+    const resp = await http.post('/personnel', this.toServer(data))
+    return this.toClient(resp.data)
   },
   async update(id: number | string, data: Partial<Person>): Promise<Person> {
-    const resp = await http.put(`/personnel/${id}`, data)
-    return resp.data
+    const resp = await http.put(`/personnel/${id}`, this.toServer(data))
+    return this.toClient(resp.data)
   },
   async upsert(p: Person): Promise<Person> {
     if (p.id) {
@@ -273,17 +397,38 @@ export const personApi = {
 
 // Shift API
 export const shiftApi = {
+  toClient(s: any): Shift {
+    return {
+      id: String(s.id),
+      code: s.code,
+      name: s.name,
+      start: s.start_time,
+      end: s.end_time,
+      description: s.description || '',
+      active: s.active === undefined ? true : !!s.active
+    }
+  },
+  toServer(data: Partial<Shift>): any {
+    const payload: any = {}
+    if (data.code !== undefined) payload.code = data.code
+    if (data.name !== undefined) payload.name = data.name
+    if (data.start !== undefined) payload.start_time = data.start
+    if (data.end !== undefined) payload.end_time = data.end
+    if (data.description !== undefined) payload.description = data.description
+    if (data.active !== undefined) payload.active = data.active ? 1 : 0
+    return payload
+  },
   async list(): Promise<Shift[]> {
     const resp = await http.get('/shifts')
-    return resp.data
+    return Array.isArray(resp.data) ? resp.data.map(this.toClient) : []
   },
   async create(data: Partial<Shift>): Promise<Shift> {
-    const resp = await http.post('/shifts', data)
-    return resp.data
+    const resp = await http.post('/shifts', this.toServer(data))
+    return this.toClient(resp.data)
   },
   async update(id: number | string, data: Partial<Shift>): Promise<Shift> {
-    const resp = await http.put(`/shifts/${id}`, data)
-    return resp.data
+    const resp = await http.put(`/shifts/${id}`, this.toServer(data))
+    return this.toClient(resp.data)
   },
   async upsert(s: Shift): Promise<Shift> {
     if (s.id) {

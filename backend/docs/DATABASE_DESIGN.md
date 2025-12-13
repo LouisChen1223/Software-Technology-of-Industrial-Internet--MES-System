@@ -52,6 +52,8 @@
 - description: 描述
 - created_at, updated_at: 时间戳
 
+业务约束：同一产品仅允许一个激活版本（is_active=1）。建议通过版本号管理历史版本，激活版本用于生产领料。
+
 #### 1.5 BOM 明细 (bom_items)
 存储物料清单明细
 - id: 主键
@@ -62,6 +64,8 @@
 - scrap_rate: 损耗率
 - description: 描述
 - created_at: 时间戳
+
+说明：`sequence`用于明细排序；`scrap_rate`用于计算理论需求量。
 
 #### 1.6 工序表 (operations)
 存储工序信息
@@ -134,6 +138,8 @@
 - description: 描述
 - created_at, updated_at: 时间戳
 
+业务约束：同一产品仅允许一个激活版本（is_active=1）。工艺路线与BOM分别版本化但需在工单创建时指向一致的产品。
+
 #### 1.12 工艺路线明细 (routing_items)
 存储工艺路线明细
 - id: 主键
@@ -145,6 +151,14 @@
 - setup_time: 准备时间（分钟）
 - description: 描述
 - created_at: 时间戳
+
+说明：`sequence`定义工序顺序；一个工艺路线可包含多个工序（一对多）。
+
+查询示例：
+- 按产品获取激活BOM：`GET /api/master/boms/by-product/{product_id}?active_only=1`
+- 按产品获取指定版本BOM：`GET /api/master/boms/by-product/{product_id}?version=1.0`
+- 按产品获取激活工艺路线：`GET /api/master/routings/by-product/{product_id}?active_only=1`
+- 按产品获取指定版本工艺路线：`GET /api/master/routings/by-product/{product_id}?version=1.0`
 
 ### 2. 工单管理模块
 

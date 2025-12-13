@@ -13,6 +13,7 @@
       <el-table-column prop="code" label="编码" width="140"/>
       <el-table-column prop="name" label="名称"/>
       <el-table-column prop="type" label="类型" width="120"/>
+      <el-table-column prop="address" label="地址"/>
       <el-table-column prop="manager" label="负责人" width="120"/>
       <el-table-column prop="active" label="启用" width="100">
         <template #default="{ row }">{{ row.active ? '是' : '否' }}</template>
