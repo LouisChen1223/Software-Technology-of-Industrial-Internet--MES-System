@@ -110,12 +110,14 @@ class Operation(Base):
     name = Column(String(100), nullable=False)
     operation_type = Column(String(50))  # 加工、装配、检验等
     standard_time = Column(Float, default=0)  # 标准工时(分钟)
+    workshop_id = Column(Integer, ForeignKey("workshops.id"), nullable=True)  # 工作地点（车间）
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
     # 关系
     routing_items = relationship("RoutingItem", back_populates="operation")
+    workshop = relationship("Workshop")
 
 
 # 设备表
@@ -131,9 +133,12 @@ class Equipment(Base):
     capacity = Column(Float, default=0)  # 产能
     status = Column(String(20), default="idle")  # idle, running, maintenance, fault
     location = Column(String(200))
+    workshop_id = Column(Integer, ForeignKey("workshops.id"), nullable=True)  # 工作地点（车间）
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    workshop = relationship("Workshop")
 
 
 # 工装表
@@ -148,9 +153,12 @@ class Tooling(Base):
     quantity = Column(Integer, default=0)
     status = Column(String(20), default="available")  # available, in-use, maintenance
     location = Column(String(200))
+    workshop_id = Column(Integer, ForeignKey("workshops.id"), nullable=True)  # 工作地点（车间）
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    workshop = relationship("Workshop")
 
 
 # 人员表
@@ -161,6 +169,7 @@ class Personnel(Base):
     code = Column(String(50), unique=True, nullable=False, index=True)
     name = Column(String(100), nullable=False)
     department = Column(String(100))
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)  # 所属部门
     position = Column(String(100))
     skill_level = Column(String(50))
     phone = Column(String(20))
@@ -169,6 +178,8 @@ class Personnel(Base):
     status = Column(String(20), default="active")  # active, inactive
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    dept = relationship("Department")
 
 
 # 班次表
@@ -180,10 +191,13 @@ class Shift(Base):
     name = Column(String(100), nullable=False)
     start_time = Column(String(10), nullable=False)  # HH:MM
     end_time = Column(String(10), nullable=False)  # HH:MM
+    workshop_id = Column(Integer, ForeignKey("workshops.id"), nullable=True)  # 工作地点（车间）
     description = Column(Text)
     active = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    workshop = relationship("Workshop")
 
 
 # 工艺路线表头

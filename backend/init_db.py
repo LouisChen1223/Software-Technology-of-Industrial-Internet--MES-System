@@ -7,8 +7,10 @@ from app.models.master import (
     UOM, Warehouse, Material, BOM, BOMItem,
     Operation, Equipment, Tooling, Personnel, Shift, Routing, RoutingItem,
 )
+from app.models import Department, Workshop
 from app.models.material_type import MaterialType
 from app.models.workorder import WorkOrder, WorkOrderOperation, WorkReport, WIPTracking
+from app.models import Shift
 from app.models.inventory import Inventory, MaterialTransaction, MaterialPick, MaterialPickItem
 from datetime import datetime, timedelta
 
@@ -168,11 +170,11 @@ def init_db():
         # 5. 工序
         print("- Creating operations...")
         operations = [
-            Operation(code="OP001", name="机架装配", operation_type="装配", standard_time=30),
-            Operation(code="OP002", name="电机安装", operation_type="装配", standard_time=20),
-            Operation(code="OP003", name="飞控安装", operation_type="装配", standard_time=15),
-            Operation(code="OP004", name="功能测试", operation_type="检验", standard_time=10),
-            Operation(code="OP005", name="包装", operation_type="包装", standard_time=5),
+            Operation(code="OP001", name="机架装配", operation_type="装配", standard_time=30, workshop_id=1),
+            Operation(code="OP002", name="电机安装", operation_type="装配", standard_time=20, workshop_id=1),
+            Operation(code="OP003", name="飞控安装", operation_type="装配", standard_time=15, workshop_id=1),
+            Operation(code="OP004", name="功能测试", operation_type="检验", standard_time=10, workshop_id=2),
+            Operation(code="OP005", name="包装", operation_type="包装", standard_time=5, workshop_id=1),
         ]
         db.add_all(operations)
         db.commit()
@@ -180,9 +182,9 @@ def init_db():
         # 6. 设备
         print("- Creating equipment...")
         equipment_list = [
-            Equipment(code="EQ001", name="装配工作台1", equipment_type="装配台", status="idle", location="车间A"),
-            Equipment(code="EQ002", name="装配工作台2", equipment_type="装配台", status="idle", location="车间A"),
-            Equipment(code="EQ003", name="测试台1", equipment_type="测试设备", status="idle", location="车间B"),
+            Equipment(code="EQ001", name="装配工作台1", equipment_type="装配台", status="idle", location="车间A", workshop_id=1),
+            Equipment(code="EQ002", name="装配工作台2", equipment_type="装配台", status="idle", location="车间A", workshop_id=1),
+            Equipment(code="EQ003", name="测试台1", equipment_type="测试设备", status="idle", location="车间B", workshop_id=2),
         ]
         db.add_all(equipment_list)
         db.commit()
@@ -190,18 +192,38 @@ def init_db():
         # 7. 工装
         print("- Creating tooling...")
         tooling_list = [
-            Tooling(code="TOOL001", name="电动螺丝刀", tooling_type="工具", quantity=10, status="available"),
-            Tooling(code="TOOL002", name="测试治具", tooling_type="治具", quantity=5, status="available"),
+            Tooling(code="TOOL001", name="电动螺丝刀", tooling_type="工具", quantity=10, status="available", workshop_id=1),
+            Tooling(code="TOOL002", name="测试治具", tooling_type="治具", quantity=5, status="available", workshop_id=2),
         ]
         db.add_all(tooling_list)
         db.commit()
         
-        # 8. 人员
+        # 8. 部门（示例）
+        print("- Creating departments...")
+        from app.models import Department
+        departments = [
+            Department(code="DEPT-A", name="生产一部", manager="张三", description="负责无人机装配线"),
+            Department(code="DEPT-B", name="质量部", manager="李四", description="质量管理与检验"),
+        ]
+        db.add_all(departments)
+        db.commit()
+
+        # 9. 车间（示例）
+        print("- Creating workshops...")
+        from app.models import Workshop
+        workshops = [
+            Workshop(code="WS-A1", name="装配车间A1", supervisor="王五", location="厂房A-一层", description="无人机主装配线", active=1),
+            Workshop(code="WS-B1", name="测试车间B1", supervisor="赵六", location="厂房B-二层", description="功能测试与调试", active=1),
+        ]
+        db.add_all(workshops)
+        db.commit()
+
+        # 10. 人员
         print("- Creating personnel...")
         personnel_list = [
-            Personnel(code="EMP001", name="张三", department="生产部", position="操作员", skill_level="高级"),
-            Personnel(code="EMP002", name="李四", department="生产部", position="操作员", skill_level="中级"),
-            Personnel(code="EMP003", name="王五", department="质检部", position="质检员", skill_level="高级"),
+            Personnel(code="P001", name="工人甲", department="生产", department_id=1, position="装配工", skill_level="中级", phone="13800000001", email="p001@example.com", shift_code="D1"),
+            Personnel(code="P002", name="工人乙", department="生产", department_id=1, position="装配工", skill_level="初级", phone="13800000002", email="p002@example.com", shift_code="D1"),
+            Personnel(code="Q001", name="检验员", department="质量", department_id=2, position="检验员", skill_level="中级", phone="13800000003", email="q001@example.com", shift_code="N1"),
         ]
         db.add_all(personnel_list)
         db.commit()
@@ -209,9 +231,8 @@ def init_db():
         # 9. 班次
         print("- Creating shifts...")
         shifts = [
-            Shift(code="SHIFT1", name="早班", start_time="08:00", end_time="16:00", active=1),
-            Shift(code="SHIFT2", name="中班", start_time="16:00", end_time="00:00", active=1),
-            Shift(code="SHIFT3", name="晚班", start_time="00:00", end_time="08:00", active=1),
+            Shift(code="D1", name="白班", start_time="08:00", end_time="17:00", active=1, workshop_id=1),
+            Shift(code="N1", name="晚班", start_time="20:00", end_time="05:00", active=1, workshop_id=2),
         ]
         db.add_all(shifts)
         db.commit()

@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api import master, workorder, inventory
+from app.api import master, workorder, inventory, department, workshop
 import logging
 import time
 import os
@@ -58,9 +58,11 @@ app.add_middleware(
 )
 
 # 注册路由
-app.include_router(master.router, prefix=settings.api_prefix, tags=["Master Data"])
-app.include_router(workorder.router, prefix=settings.api_prefix, tags=["Work Order"])
-app.include_router(inventory.router, prefix=settings.api_prefix, tags=["Inventory"])
+app.include_router(master, prefix=settings.api_prefix, tags=["Master Data"])
+app.include_router(workorder, prefix=settings.api_prefix, tags=["Work Order"])
+app.include_router(inventory, prefix=settings.api_prefix, tags=["Inventory"])
+app.include_router(department, prefix=settings.api_prefix, tags=["Master Data"])
+app.include_router(workshop, prefix=settings.api_prefix, tags=["Master Data"])
 
 
 @app.get("/")

@@ -8,6 +8,9 @@
       <el-table-column prop="name" label="名称"/>
       <el-table-column prop="start" label="开始" width="100"/>
       <el-table-column prop="end" label="结束" width="100"/>
+      <el-table-column prop="workshopId" label="车间" width="160">
+        <template #default="{ row }">{{ workshopName(row.workshopId) }}</template>
+      </el-table-column>
       <el-table-column prop="active" label="启用" width="80">
         <template #default="{ row }">{{ row.active ? '是' : '否' }}</template>
       </el-table-column>
@@ -24,6 +27,11 @@
         <el-form-item label="名称"><el-input v-model="form.name"/></el-form-item>
   <el-form-item label="开始"><el-input v-model="form.start" placeholder="08:00"/></el-form-item>
   <el-form-item label="结束"><el-input v-model="form.end" placeholder="16:30"/></el-form-item>
+        <el-form-item label="所属车间">
+          <el-select v-model="(form as any).workshopId" placeholder="选择车间">
+            <el-option v-for="w in workshops" :key="w.id" :label="w.name" :value="String(w.id)" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="启用"><el-switch v-model="(form as any).active"/></el-form-item>
       </el-form>
       <template #footer>
@@ -38,16 +46,27 @@
 import { ref, onMounted } from 'vue'
 import type { Shift } from '@/types/master'
 import { shiftApi } from '@/api/masterData'
+import { listWorkshops } from '@/api/workshop'
 
 const list = ref<Shift[]>([])
 const dlg = ref(false)
 const form = ref<Partial<Shift>>({ active: true })
+const workshops = ref<Array<{ id: number; name: string }>>([])
 
 async function load() {
   try {
     list.value = await shiftApi.list()
   } catch (error) {
     console.error('加载班次失败:', error)
+  }
+}
+
+async function loadWorkshops() {
+  try {
+    const resp = await listWorkshops({ active: 1 })
+    workshops.value = Array.isArray(resp.data) ? resp.data.map((w: any) => ({ id: w.id, name: w.name })) : []
+  } catch (e) {
+    console.error('加载车间失败:', e)
   }
 }
 
@@ -81,7 +100,13 @@ async function save() {
   }
 }
 
-onMounted(() => { load() })
+function workshopName(id?: string) {
+  if (!id) return ''
+  const w = workshops.value.find(x => String(x.id) === String(id))
+  return w ? w.name : id
+}
+
+onMounted(() => { load(); loadWorkshops() })
 </script>
 
 <style scoped>

@@ -1,17 +1,28 @@
 import http from './http'
-import type { Material, BomHeader, BomItem, Operation, Routing, Equipment, Tooling, Person, Shift, Warehouse, Uom, MaterialType } from '@/types/master'
+import type {
+  Material,
+  BomHeader,
+  BomItem,
+  Operation,
+  Routing,
+  Equipment,
+  Tooling,
+  Person,
+  Shift,
+  Warehouse,
+  Uom,
+  MaterialType
+} from '@/types/master'
 
 // UOM API
 export const uomApi = {
-  // 字段映射：后端无 precision/active，前端需要展示，提供合理默认
   toClient(u: any): Uom {
     return {
       id: String(u.id),
       code: u.code,
       name: u.name,
       precision: u.precision ?? 0,
-      // 后端可能返回 0/1，需转为布尔
-      active: u.active === undefined ? true : !!u.active,
+      active: u.active === undefined ? true : !!u.active
     }
   },
   toServer(data: Partial<Uom>): any {
@@ -98,7 +109,7 @@ export const warehouseApi = {
       address: w.location || '',
       manager: w.manager || '',
       // 后端无 active，默认启用
-      active: w.active === undefined ? true : !!w.active,
+      active: w.active === undefined ? true : !!w.active
     }
   },
   toServer(data: Partial<Warehouse>): any {
@@ -223,9 +234,9 @@ export const operationApi = {
       name: o.name,
       description: o.description || '',
       stdDurationMin: o.standard_time ?? 0,
-      workstationCode: o.workstation_code || '',
+      workshopId: o.workshop_id != null ? String(o.workshop_id) : '',
       needTooling: !!o.need_tooling,
-      qualityCheck: !!o.quality_check,
+      qualityCheck: !!o.quality_check
     }
   },
   toServer(data: Partial<Operation>): any {
@@ -234,7 +245,10 @@ export const operationApi = {
     if (data.name !== undefined) payload.name = data.name
     if (data.description !== undefined) payload.description = data.description
     if (data.stdDurationMin !== undefined) payload.standard_time = Number(data.stdDurationMin)
-    if (data.workstationCode !== undefined) payload.workstation_code = data.workstationCode
+    if (data.workshopId !== undefined) {
+      const n = Number(data.workshopId)
+      if (!Number.isNaN(n)) payload.workshop_id = n
+    }
     if (data.needTooling !== undefined) payload.need_tooling = data.needTooling ? 1 : 0
     if (data.qualityCheck !== undefined) payload.quality_check = data.qualityCheck ? 1 : 0
     return payload
@@ -307,6 +321,7 @@ export const equipmentApi = {
       vendor: e.manufacturer || '',
       lineCode: e.line_code || '',
       workstationCode: e.workstation_code || '',
+      workshopId: e.workshop_id != null ? String(e.workshop_id) : '',
       enabled: e.status ? e.status !== 'maintenance' && e.status !== 'fault' : true,
       capacityPerHour: e.capacity ?? 0
     }
@@ -319,6 +334,10 @@ export const equipmentApi = {
     if (data.vendor !== undefined) payload.manufacturer = data.vendor
     if (data.capacityPerHour !== undefined) payload.capacity = Number(data.capacityPerHour)
     if (data.workstationCode !== undefined) payload.workstation_code = data.workstationCode
+    if (data.workshopId !== undefined) {
+      const n = Number(data.workshopId)
+      if (!Number.isNaN(n)) payload.workshop_id = n
+    }
     if (data.enabled !== undefined) payload.status = data.enabled ? 'idle' : 'maintenance'
     return payload
   },
@@ -355,6 +374,7 @@ export const toolingApi = {
       name: t.name,
       type: t.tooling_type || '',
       description: t.description || '',
+      workshopId: t.workshop_id != null ? String(t.workshop_id) : '',
       usable: t.status ? t.status === 'available' : true
     }
   },
@@ -364,6 +384,10 @@ export const toolingApi = {
     if (data.name !== undefined) payload.name = data.name
     if (data.type !== undefined) payload.tooling_type = data.type
     if (data.description !== undefined) payload.description = data.description
+    if (data.workshopId !== undefined) {
+      const n = Number(data.workshopId)
+      if (!Number.isNaN(n)) payload.workshop_id = n
+    }
     if (data.usable !== undefined) payload.status = data.usable ? 'available' : 'maintenance'
     return payload
   },
@@ -400,6 +424,7 @@ export const personApi = {
       name: p.name,
       role: p.position || 'operator',
       shiftCode: p.shift_code || '',
+      departmentId: p.department_id != null ? String(p.department_id) : '',
       active: p.status ? p.status === 'active' : true
     }
   },
@@ -409,6 +434,10 @@ export const personApi = {
     if (data.name !== undefined) payload.name = data.name
     if (data.role !== undefined) payload.position = data.role
     if (data.shiftCode !== undefined) payload.shift_code = data.shiftCode
+    if (data.departmentId !== undefined) {
+      const n = Number(data.departmentId)
+      if (!Number.isNaN(n)) payload.department_id = n
+    }
     if (data.active !== undefined) payload.status = data.active ? 'active' : 'inactive'
     return payload
   },
@@ -446,6 +475,7 @@ export const shiftApi = {
       start: s.start_time,
       end: s.end_time,
       description: s.description || '',
+      workshopId: s.workshop_id != null ? String(s.workshop_id) : '',
       active: s.active === undefined ? true : !!s.active
     }
   },
@@ -456,6 +486,10 @@ export const shiftApi = {
     if (data.start !== undefined) payload.start_time = data.start
     if (data.end !== undefined) payload.end_time = data.end
     if (data.description !== undefined) payload.description = data.description
+    if (data.workshopId !== undefined) {
+      const n = Number(data.workshopId)
+      if (!Number.isNaN(n)) payload.workshop_id = n
+    }
     if (data.active !== undefined) payload.active = data.active ? 1 : 0
     return payload
   },
@@ -483,4 +517,4 @@ export const shiftApi = {
   }
 }
 
-// 不再需要 ensureSeed 函数，数据由后端初始化脚本提供
+// 数据由后端初始化脚本提供

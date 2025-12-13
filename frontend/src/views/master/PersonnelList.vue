@@ -10,6 +10,9 @@
       <el-table-column prop="shiftCode" label="班次" width="160">
         <template #default="{ row }">{{ shiftName(row.shiftCode) }}</template>
       </el-table-column>
+      <el-table-column prop="departmentId" label="部门" width="160">
+        <template #default="{ row }">{{ deptName(row.departmentId) }}</template>
+      </el-table-column>
       <el-table-column prop="active" label="在岗" width="100">
         <template #default="{ row }">{{ row.active ? '是' : '否' }}</template>
       </el-table-column>
@@ -30,6 +33,11 @@
             <el-option v-for="s in enabledShifts()" :key="s.id" :label="s.code + ' - ' + s.name" :value="s.code" />
           </el-select>
         </el-form-item>
+        <el-form-item label="所属部门">
+          <el-select v-model="(form as any).departmentId" placeholder="选择部门">
+            <el-option v-for="d in departments" :key="d.id" :label="d.name" :value="String(d.id)" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="在岗"><el-switch v-model="(form as any).active"/></el-form-item>
       </el-form>
       <template #footer>
@@ -44,12 +52,14 @@
 import { ref, onMounted } from 'vue'
 import type { Person, Shift } from '@/types/master'
 import { personApi, shiftApi } from '@/api/masterData'
+import { listDepartments } from '@/api/department'
 
 const list = ref<Person[]>([])
 const dlg = ref(false)
 const form = ref<Partial<Person>>({ active: true, role: 'operator' })
 const shifts = ref<Shift[]>([])
 const enabledShifts = () => shifts.value.filter(s => !!s.active)
+const departments = ref<Array<{ id: number; name: string }>>([])
 
 function shiftName(code?: string) {
   if (!code) return ''
@@ -63,6 +73,15 @@ async function load() {
     shifts.value = await shiftApi.list()
   } catch (error) {
     console.error('加载人员失败:', error)
+  }
+}
+
+async function loadDepartments() {
+  try {
+    const resp = await listDepartments({ active: 1 })
+    departments.value = Array.isArray(resp.data) ? resp.data.map((d: any) => ({ id: d.id, name: d.name })) : []
+  } catch (e) {
+    console.error('加载部门失败:', e)
   }
 }
 
@@ -97,7 +116,13 @@ async function save() {
   }
 }
 
-onMounted(() => { load() })
+function deptName(id?: string) {
+  if (!id) return ''
+  const d = departments.value.find(x => String(x.id) === String(id))
+  return d ? d.name : id
+}
+
+onMounted(() => { load(); loadDepartments() })
 </script>
 
 <style scoped>

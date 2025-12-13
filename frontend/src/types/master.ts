@@ -38,7 +38,8 @@ export interface Operation {
   name: string
   description?: string
   stdDurationMin?: number // 标准工时(分钟)
-  workstationCode?: string // 关联缺省工位
+  workstationCode?: string // 关联缺省工位（旧字段，兼容）
+  workshopId?: string // 关联车间ID
   needTooling?: boolean
   qualityCheck?: boolean
 }
@@ -67,6 +68,7 @@ export interface Equipment {
   vendor?: string
   lineCode?: string
   workstationCode?: string
+  workshopId?: string
   enabled: boolean
   capacityPerHour?: number
 }
@@ -77,6 +79,7 @@ export interface Tooling {
   name: string
   type?: string
   description?: string
+  workshopId?: string
   usable: boolean
 }
 
@@ -86,6 +89,7 @@ export interface Person {
   name: string
   role: string // operator / qc / supervisor
   shiftCode?: string
+  departmentId?: string
   active: boolean
 }
 
@@ -96,6 +100,7 @@ export interface Shift {
   start: string // HH:mm
   end: string // HH:mm
   description?: string
+  workshopId?: string
   active: boolean
 }
 

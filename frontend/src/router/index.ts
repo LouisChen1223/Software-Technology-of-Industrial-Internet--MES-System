@@ -16,6 +16,8 @@ const Shifts = () => import('@/views/master/Shifts.vue')
 const Warehouses = () => import('@/views/master/Warehouses.vue')
 const Uoms = () => import('@/views/master/Uoms.vue')
 const MaterialTypes = () => import('@/views/master/MaterialTypes.vue')
+const Departments = () => import('@/views/master/Departments.vue')
+const Workshops = () => import('@/views/master/Workshops.vue')
 
 const router = createRouter({
   history: createWebHistory(),
@@ -39,6 +41,8 @@ const router = createRouter({
         { path: 'warehouses', component: Warehouses },
         { path: 'uoms', component: Uoms },
         { path: 'material-types', component: MaterialTypes }
+        ,{ path: 'departments', component: Departments }
+        ,{ path: 'workshops', component: Workshops }
       ]
     }
   ]

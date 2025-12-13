@@ -201,6 +201,7 @@ class OperationBase(BaseModel):
     name: str = Field(..., max_length=100)
     operation_type: Optional[str] = None
     standard_time: Optional[float] = 0
+    workshop_id: Optional[int] = None
     description: Optional[str] = None
 
 
@@ -213,6 +214,7 @@ class OperationUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=100)
     operation_type: Optional[str] = None
     standard_time: Optional[float] = None
+    workshop_id: Optional[int] = None
     description: Optional[str] = None
 
 
@@ -235,6 +237,7 @@ class EquipmentBase(BaseModel):
     capacity: Optional[float] = 0
     status: Optional[str] = "idle"
     location: Optional[str] = None
+    workshop_id: Optional[int] = None
     description: Optional[str] = None
 
 
@@ -251,6 +254,7 @@ class EquipmentUpdate(BaseModel):
     capacity: Optional[float] = None
     status: Optional[str] = None
     location: Optional[str] = None
+    workshop_id: Optional[int] = None
     description: Optional[str] = None
 
 
@@ -272,6 +276,7 @@ class ToolingBase(BaseModel):
     quantity: Optional[int] = 0
     status: Optional[str] = "available"
     location: Optional[str] = None
+    workshop_id: Optional[int] = None
     description: Optional[str] = None
 
 
@@ -287,6 +292,7 @@ class ToolingUpdate(BaseModel):
     quantity: Optional[int] = None
     status: Optional[str] = None
     location: Optional[str] = None
+    workshop_id: Optional[int] = None
     description: Optional[str] = None
 
 
@@ -304,6 +310,7 @@ class PersonnelBase(BaseModel):
     code: str = Field(..., max_length=50)
     name: str = Field(..., max_length=100)
     department: Optional[str] = None
+    department_id: Optional[int] = None
     position: Optional[str] = None
     skill_level: Optional[str] = None
     phone: Optional[str] = None
@@ -343,6 +350,7 @@ class ShiftBase(BaseModel):
     name: str = Field(..., max_length=100)
     start_time: str = Field(..., max_length=10)
     end_time: str = Field(..., max_length=10)
+    workshop_id: Optional[int] = None
     description: Optional[str] = None
     active: Optional[int] = 1
 

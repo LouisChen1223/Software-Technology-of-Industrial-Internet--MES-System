@@ -7,6 +7,9 @@
       <el-table-column prop="code" label="编码" width="140"/>
       <el-table-column prop="name" label="名称"/>
       <el-table-column prop="type" label="类型" width="140"/>
+      <el-table-column prop="workshopId" label="车间" width="160">
+        <template #default="{ row }">{{ workshopName(row.workshopId) }}</template>
+      </el-table-column>
       <el-table-column prop="usable" label="可用" width="100">
         <template #default="{ row }">{{ row.usable ? '是' : '否' }}</template>
       </el-table-column>
@@ -36,16 +39,27 @@
 import { ref, onMounted } from 'vue'
 import type { Tooling } from '@/types/master'
 import { toolingApi } from '@/api/masterData'
+import { listWorkshops } from '@/api/workshop'
 
 const list = ref<Tooling[]>([])
 const dlg = ref(false)
 const form = ref<Partial<Tooling>>({ usable: true })
+const workshops = ref<Array<{ id: number; name: string }>>([])
 
 async function load() {
   try {
     list.value = await toolingApi.list()
   } catch (error) {
     console.error('加载工装失败:', error)
+  }
+}
+
+async function loadWorkshops() {
+  try {
+    const resp = await listWorkshops({ active: 1 })
+    workshops.value = Array.isArray(resp.data) ? resp.data.map((w: any) => ({ id: w.id, name: w.name })) : []
+  } catch (e) {
+    console.error('加载车间失败:', e)
   }
 }
 
@@ -79,7 +93,13 @@ async function save() {
   }
 }
 
-onMounted(() => { load() })
+function workshopName(id?: string) {
+  if (!id) return ''
+  const w = workshops.value.find(x => String(x.id) === String(id))
+  return w ? w.name : id
+}
+
+onMounted(() => { load(); loadWorkshops() })
 </script>
 
 <style scoped>

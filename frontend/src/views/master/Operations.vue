@@ -10,7 +10,9 @@
       <el-table-column prop="code" label="编码" width="140"/>
       <el-table-column prop="name" label="名称"/>
       <el-table-column prop="stdDurationMin" label="标准工时(分)" width="140"/>
-      <el-table-column prop="workstationCode" label="工位" width="140"/>
+      <el-table-column prop="workshopId" label="车间" width="160">
+        <template #default="{ row }">{{ workshopName(row.workshopId) }}</template>
+      </el-table-column>
       <el-table-column label="操作" width="160">
         <template #default="{ row }">
           <el-button size="small" @click="edit(row)">编辑</el-button>
@@ -24,7 +26,11 @@
         <el-form-item label="编码"><el-input v-model="form.code"/></el-form-item>
         <el-form-item label="名称"><el-input v-model="form.name"/></el-form-item>
         <el-form-item label="标准工时(分)"><el-input-number v-model="(form as any).stdDurationMin" :min="0"/></el-form-item>
-        <el-form-item label="默认工位"><el-input v-model="form.workstationCode"/></el-form-item>
+        <el-form-item label="所属车间">
+          <el-select v-model="(form as any).workshopId" placeholder="选择车间">
+            <el-option v-for="w in workshops" :key="w.id" :label="w.name" :value="String(w.id)" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="需工装"><el-switch v-model="(form as any).needTooling"/></el-form-item>
         <el-form-item label="质检点"><el-switch v-model="(form as any).qualityCheck"/></el-form-item>
       </el-form>
@@ -40,6 +46,9 @@
 import { ref, onMounted } from 'vue'
 import type { Operation } from '@/types/master'
 import { operationApi } from '@/api/masterData'
+import { listWorkshops } from '@/api/workshop'
+
+const workshops = ref<Array<{ id: number; name: string }>>([])
 
 const list = ref<Operation[]>([])
 const dlg = ref(false)
@@ -47,9 +56,19 @@ const form = ref<Partial<Operation>>({})
 
 async function load() {
   try {
-    list.value = await operationApi.list()
+    const [opsResp] = await Promise.all([operationApi.list()])
+    list.value = opsResp
   } catch (error) {
     console.error('加载工序失败:', error)
+  }
+}
+
+async function loadWorkshops() {
+  try {
+    const resp = await listWorkshops({ active: 1 })
+    workshops.value = Array.isArray(resp.data) ? resp.data.map((w: any) => ({ id: w.id, name: w.name })) : []
+  } catch (e) {
+    console.error('加载车间失败:', e)
   }
 }
 
@@ -83,7 +102,13 @@ async function save() {
   }
 }
 
-onMounted(() => { load() })
+function workshopName(id?: string) {
+  if (!id) return ''
+  const w = workshops.value.find(x => String(x.id) === String(id))
+  return w ? w.name : id
+}
+
+onMounted(() => { load(); loadWorkshops() })
 </script>
 
 <style scoped>

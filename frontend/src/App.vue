@@ -16,17 +16,31 @@
             <el-menu-item index="/inventory">库存/出入库</el-menu-item>
             <el-sub-menu index="/master">
               <template #title>基础主数据</template>
-              <el-menu-item index="/master/materials">物料</el-menu-item>
-              <el-menu-item index="/master/bom">BOM</el-menu-item>
-              <el-menu-item index="/master/routing">工艺路线</el-menu-item>
-              <el-menu-item index="/master/operations">工序</el-menu-item>
-              <el-menu-item index="/master/equipment">设备</el-menu-item>
-              <el-menu-item index="/master/tooling">工装</el-menu-item>
-              <el-menu-item index="/master/personnel">人员</el-menu-item>
-              <el-menu-item index="/master/shifts">班次</el-menu-item>
-              <el-menu-item index="/master/warehouses">仓库</el-menu-item>
-              <el-menu-item index="/master/uoms">计量单位</el-menu-item>
-              <el-menu-item index="/master/material-types">物料类型</el-menu-item>
+              <el-sub-menu index="/master/dict">
+                <template #title>基础字典</template>
+                <el-menu-item index="/master/uoms">计量单位</el-menu-item>
+                <el-menu-item index="/master/material-types">物料类型</el-menu-item>
+              </el-sub-menu>
+              <el-sub-menu index="/master/org">
+                <template #title>组织与资源</template>
+                <el-menu-item index="/master/departments">部门</el-menu-item>
+                <el-menu-item index="/master/workshops">车间</el-menu-item>
+                <el-menu-item index="/master/personnel">人员</el-menu-item>
+                <el-menu-item index="/master/shifts">班次</el-menu-item>
+                <el-menu-item index="/master/equipment">设备</el-menu-item>
+                <el-menu-item index="/master/tooling">工装治具</el-menu-item>
+                <el-menu-item index="/master/warehouses">仓库</el-menu-item>
+              </el-sub-menu>
+              <el-sub-menu index="/master/process">
+                <template #title>工艺管理</template>
+                <el-menu-item index="/master/operations">工序</el-menu-item>
+                <el-menu-item index="/master/routing">工艺路线</el-menu-item>
+              </el-sub-menu>
+              <el-sub-menu index="/master/material">
+                <template #title>物料管理</template>
+                <el-menu-item index="/master/materials">物料</el-menu-item>
+                <el-menu-item index="/master/bom">BOM</el-menu-item>
+              </el-sub-menu>
             </el-sub-menu>
           </el-menu>
         </el-aside>

@@ -7,7 +7,9 @@
       <el-table-column prop="code" label="编码" width="140"/>
       <el-table-column prop="name" label="名称"/>
       <el-table-column prop="type" label="类型" width="120"/>
-      <el-table-column prop="workstationCode" label="工位" width="120"/>
+      <el-table-column prop="workshopId" label="车间" width="160">
+        <template #default="{ row }">{{ workshopName(row.workshopId) }}</template>
+      </el-table-column>
       <el-table-column prop="enabled" label="启用" width="100">
         <template #default="{ row }">{{ row.enabled ? '是' : '否' }}</template>
       </el-table-column>
@@ -23,7 +25,11 @@
         <el-form-item label="编码"><el-input v-model="form.code"/></el-form-item>
         <el-form-item label="名称"><el-input v-model="form.name"/></el-form-item>
         <el-form-item label="类型"><el-input v-model="form.type"/></el-form-item>
-        <el-form-item label="工位"><el-input v-model="form.workstationCode"/></el-form-item>
+        <el-form-item label="所属车间">
+          <el-select v-model="(form as any).workshopId" placeholder="选择车间">
+            <el-option v-for="w in workshops" :key="w.id" :label="w.name" :value="String(w.id)" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="启用"><el-switch v-model="(form as any).enabled"/></el-form-item>
       </el-form>
       <template #footer>
@@ -38,16 +44,27 @@
 import { ref, onMounted } from 'vue'
 import type { Equipment } from '@/types/master'
 import { equipmentApi } from '@/api/masterData'
+import { listWorkshops } from '@/api/workshop'
 
 const list = ref<Equipment[]>([])
 const dlg = ref(false)
 const form = ref<Partial<Equipment>>({ enabled: true })
+const workshops = ref<Array<{ id: number; name: string }>>([])
 
 async function load() {
   try {
     list.value = await equipmentApi.list()
   } catch (error) {
     console.error('加载设备失败:', error)
+  }
+}
+
+async function loadWorkshops() {
+  try {
+    const resp = await listWorkshops({ active: 1 })
+    workshops.value = Array.isArray(resp.data) ? resp.data.map((w: any) => ({ id: w.id, name: w.name })) : []
+  } catch (e) {
+    console.error('加载车间失败:', e)
   }
 }
 
@@ -81,7 +98,13 @@ async function save() {
   }
 }
 
-onMounted(() => { load() })
+function workshopName(id?: string) {
+  if (!id) return ''
+  const w = workshops.value.find(x => String(x.id) === String(id))
+  return w ? w.name : id
+}
+
+onMounted(() => { load(); loadWorkshops() })
 </script>
 
 <style scoped>
