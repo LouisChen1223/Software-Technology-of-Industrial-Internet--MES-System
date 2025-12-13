@@ -9,6 +9,8 @@
           <el-checkbox v-model="filterActiveOnly">仅激活</el-checkbox>
           <el-button size="small" @click="applyFilter">筛选</el-button>
           <el-button type="primary" @click="openHeader">新建BOM</el-button>
+          <el-button @click="openEditHeader" :disabled="!current">编辑BOM</el-button>
+          <el-button type="danger" @click="deleteHeader" :disabled="!current">删除BOM</el-button>
         </div>
       </div>
     </template>
@@ -25,7 +27,15 @@
         </el-table>
       </el-col>
       <el-col :span="14">
-        <el-table :data="items" height="60vh">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span style="font-weight:600">BOM 明细</span>
+          <div style="display:flex;gap:8px">
+            <el-button size="small" type="primary" @click="addItem" :disabled="!current">新增行</el-button>
+            <el-button size="small" @click="editItem" :disabled="!currentItem">编辑</el-button>
+            <el-button size="small" type="danger" @click="deleteItem" :disabled="!currentItem">删除</el-button>
+          </div>
+        </div>
+        <el-table :data="items" height="60vh" @row-click="selectItem" highlight-current-row>
           <el-table-column prop="sequence" label="#" width="60"/>
           <el-table-column prop="material_id" label="物料ID" width="100"/>
           <el-table-column prop="material_code" label="物料编码"/>
@@ -33,9 +43,6 @@
           <el-table-column prop="quantity" label="用量" width="100"/>
           <el-table-column prop="scrap_rate" label="损耗%" width="100"/>
         </el-table>
-        <div style="margin-top:8px">
-          <el-button size="small" @click="addItem" :disabled="!current">新增行</el-button>
-        </div>
       </el-col>
     </el-row>
 
@@ -57,7 +64,7 @@
       </template>
     </el-dialog>
     
-    <el-dialog v-model="dlgItem" title="新增BOM行" width="520px">
+    <el-dialog v-model="dlgItem" :title="itemDialogTitle" width="520px">
       <el-form :model="itemForm" label-width="90px">
         <el-form-item label="选择物料">
           <el-select v-model="itemForm.materialCode" filterable placeholder="选择有库存的物料">
@@ -80,16 +87,20 @@ import { ref, onMounted } from 'vue'
 import type { BomHeader, BomItem, Material } from '@/types/master'
 import { bomApi, materialApi } from '@/api/masterData'
 import http from '@/api/http'
+import { ElMessageBox } from 'element-plus'
 
 const headers = ref<any[]>([])
 const items = ref<any[]>([])
 const current = ref<any | null>(null)
+const currentItem = ref<any | null>(null)
 
 const dlgHeader = ref(false)
-const headerForm = ref<any>({ code: '', name: '', productCode: '', version: '1.0', is_active: true })
+const headerForm = ref<any>({ code: '', name: '', productCode: '', version: '1.0', is_active: false })
+const headerMode = ref<'create'|'edit'>('create')
 
 const dlgItem = ref(false)
 const itemForm = ref<any>({ materialCode: '', qty: 1, scrapRate: 0 })
+const itemDialogTitle = ref('新增BOM行')
 const stockedMaterials = ref<any[]>([])
 const allMaterials = ref<Material[]>([])
 const filterProductCode = ref('')
@@ -110,13 +121,14 @@ async function applyFilter(){
     if (!filterProductCode.value) { headers.value = await bomApi.list(); return }
     const prod = allMaterials.value.find(m=>m.code===filterProductCode.value)
     if (!prod) { headers.value = []; return }
-    headers.value = await bomApi.byProduct(prod.id, { version: filterVersion.value || undefined, activeOnly: filterActiveOnly.value })
+    headers.value = await bomApi.byProduct(prod.id, { version: filterVersion.value || undefined, activeOnly: filterActiveOnly.value ? 1 : 0 })
   } catch (e) { console.error(e) }
 }
 
 async function selectHeader(row: BomHeader) {
   try {
     current.value = row
+    currentItem.value = null
     const detail = await bomApi.detail(row.id)
     // 通过物料列表补充编码与名称
     const mats = await materialApi.list()
@@ -133,8 +145,29 @@ async function selectHeader(row: BomHeader) {
   }
 }
 
+function selectItem(row: BomItem) {
+  currentItem.value = row
+}
+
 function openHeader() {
-  headerForm.value = { code: '', name: '', productCode: '', version: '1.0', is_active: true }
+  // 新建默认非激活，避免后端“同产品激活版本唯一”约束报错
+  headerForm.value = { code: '', name: '', productCode: '', version: '1.0', is_active: false }
+  headerMode.value = 'create'
+  dlgHeader.value = true
+}
+
+function openEditHeader() {
+  if (!current.value) return
+  // 预填当前选中的 BOM 头信息
+  const prod = allMaterials.value.find(m => String(m.id) === String(current.value.product_id))
+  headerForm.value = {
+    code: current.value.code || '',
+    name: current.value.name || '',
+    productCode: prod?.code || '',
+    version: current.value.version || '1.0',
+    is_active: !!current.value.is_active
+  }
+  headerMode.value = 'edit'
   dlgHeader.value = true
 }
 
@@ -153,12 +186,55 @@ async function saveHeader() {
       items: []
     }
     if (!payload.code || !payload.name) throw new Error('请填写BOM编码与名称')
-    const h = await bomApi.create(payload)
-    current.value = h
+    if (headerMode.value === 'create') {
+      // 若尝试新建为激活版本，先检查是否已有激活BOM
+      if (Number(payload.is_active) === 1) {
+        const existingActives = await bomApi.byProduct(Number(prod.id), { activeOnly: 1 })
+        if (existingActives && existingActives.length > 0) {
+          await ElMessageBox.alert('该产品已存在激活的BOM，无法再新建为激活。请取消激活或编辑现有BOM。', '激活冲突', { type: 'warning' })
+          return
+        }
+      }
+      // 新建
+      const h = await bomApi.create(payload)
+      current.value = h
+    } else {
+      // 编辑（不覆盖 items）
+      const detail = await bomApi.detail(current.value.id)
+      // 编辑若切换为激活，也需检查唯一性
+      if (payload.is_active === 1) {
+        const existingActives = await bomApi.byProduct(Number(payload.product_id || (detail as any).header?.product_id), { activeOnly: 1 })
+        const others = (existingActives || []).filter((b:any)=> String(b.id) !== String(current.value.id))
+        if (others.length > 0) {
+          await ElMessageBox.alert('该产品已存在激活的BOM，无法将当前BOM设为激活。请先取消其他激活版本。', '激活冲突', { type: 'warning' })
+          return
+        }
+      }
+      await bomApi.update(current.value.id, {
+        ...payload,
+        items: (detail.items || []).map((it:any)=>({ material_id: it.material_id, quantity: it.quantity, sequence: it.sequence, scrap_rate: it.scrap_rate }))
+      })
+    }
     await applyFilter()
     dlgHeader.value = false
+    headerMode.value = 'create'
   } catch (error) {
     console.error('保存BOM头失败:', error)
+    try {
+      await ElMessageBox.alert(String((error as any)?.message || '保存失败'), '错误', { type: 'error' })
+    } catch {}
+  }
+}
+
+async function deleteHeader() {
+  if (!current.value) return
+  try {
+    await bomApi.remove(current.value.id)
+    current.value = null
+    items.value = []
+    await applyFilter()
+  } catch (e) {
+    console.error('删除BOM失败:', e)
   }
 }
 
@@ -169,34 +245,97 @@ async function addItem() {
     const resp = await http.get('/inventory/summary/by-material')
     stockedMaterials.value = (resp.data || []).filter((r: any) => r.total_available > 0)
   } catch (e) { console.error(e) }
+  itemDialogTitle.value = '新增BOM行'
   itemForm.value = { materialCode: '', qty: 1, scrapRate: 0 }
   dlgItem.value = true
 }
 
 async function saveItem() {
   try {
-    if (!current.value) throw new Error('请先选择要新增行的BOM')
+    if (!current.value) throw new Error('请先选择要操作的BOM')
     const detail = await bomApi.detail(current.value!.id)
-    // 将选择的物料编码映射为 material_id
     const mat = allMaterials.value.find(m => m.code === itemForm.value.materialCode)
     if (!mat) throw new Error('未找到该物料，请检查物料编码')
-    const newItem = {
-      material_id: Number(mat.id),
-      quantity: Number(itemForm.value.qty || 0),
-      sequence: (detail.items?.length || 0) + 1,
-      scrap_rate: Number(itemForm.value.scrapRate || 0)
+
+    const baseItems = (detail.items || []).map((it: any) => ({
+      material_id: it.material_id,
+      quantity: it.quantity,
+      sequence: it.sequence,
+      scrap_rate: it.scrap_rate
+    }))
+
+    let payloadItems: any[] = []
+    if (itemDialogTitle.value === '新增BOM行') {
+      const newItem = {
+        material_id: Number(mat.id),
+        quantity: Number(itemForm.value.qty || 0),
+        sequence: (detail.items?.length || 0) + 1,
+        scrap_rate: Number(itemForm.value.scrapRate || 0)
+      }
+      payloadItems = [...baseItems, newItem]
+    } else {
+      // 编辑：替换选中行
+      payloadItems = baseItems.map((it: any) => {
+        if (String(it.sequence) === String(currentItem.value?.sequence)) {
+          return {
+            material_id: Number(mat.id),
+            quantity: Number(itemForm.value.qty || 0),
+            sequence: it.sequence,
+            scrap_rate: Number(itemForm.value.scrapRate || 0)
+          }
+        }
+        return it
+      })
     }
-    const payload = { items: [...(detail.items || []).map((it: any) => ({ material_id: it.material_id, quantity: it.quantity, sequence: it.sequence, scrap_rate: it.scrap_rate })), newItem] }
-    await bomApi.update(current.value!.id, payload)
+
+    await bomApi.update(current.value!.id, { items: payloadItems })
     const latest = await bomApi.detail(current.value!.id)
     const mats = await materialApi.list()
     items.value = (latest.items || []).map((it:any)=>{
-      const m = mats.find(mm => String(mm.id) === String(it.material_id))
-      return { ...it, material_code: m?.code || '', material_name: m?.name || '' }
+      const mm = mats.find(mmm => String(mmm.id) === String(it.material_id))
+      return { ...it, material_code: mm?.code || '', material_name: mm?.name || '' }
     })
     dlgItem.value = false
   } catch (error) {
     console.error('保存BOM明细失败:', error)
+  }
+}
+
+function editItem() {
+  if (!currentItem.value || !current.value) return
+  itemDialogTitle.value = '编辑BOM行'
+  // 预填表单：根据选中行 material_id 找到编码
+  const m = allMaterials.value.find(mm => String(mm.id) === String(currentItem.value!.material_id))
+  itemForm.value = {
+    materialCode: m?.code || '',
+    qty: currentItem.value!.quantity,
+    scrapRate: currentItem.value!.scrap_rate || 0
+  }
+  dlgItem.value = true
+}
+
+async function deleteItem() {
+  if (!currentItem.value || !current.value) return
+  try {
+    const detail = await bomApi.detail(current.value!.id)
+    // 删除选中 sequence 的行，并重排 sequence
+    const rest = (detail.items || []).filter((it: any) => String(it.sequence) !== String(currentItem.value!.sequence))
+      .map((it: any, idx: number) => ({
+        material_id: it.material_id,
+        quantity: it.quantity,
+        sequence: idx + 1,
+        scrap_rate: it.scrap_rate
+      }))
+    await bomApi.update(current.value!.id, { items: rest })
+    const latest = await bomApi.detail(current.value!.id)
+    const mats = await materialApi.list()
+    items.value = (latest.items || []).map((it:any)=>{
+      const mm = mats.find(mmm => String(mmm.id) === String(it.material_id))
+      return { ...it, material_code: mm?.code || '', material_name: mm?.name || '' }
+    })
+    currentItem.value = null
+  } catch (e) {
+    console.error('删除BOM行失败:', e)
   }
 }
 

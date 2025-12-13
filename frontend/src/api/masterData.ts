@@ -194,10 +194,10 @@ export const bomApi = {
     const resp = await http.get(`/boms/${bomId}`)
     return { header: resp.data, items: resp.data.items || [] }
   },
-  async byProduct(productId: number | string, opts?: { version?: string; activeOnly?: boolean }): Promise<BomHeader[]> {
+  async byProduct(productId: number | string, opts?: { version?: string; activeOnly?: boolean | number }): Promise<BomHeader[]> {
     const params: any = {}
     if (opts?.version) params.version = opts.version
-    if (opts?.activeOnly) params.active_only = 1
+    if (opts?.activeOnly !== undefined) params.active_only = Number(opts.activeOnly) === 1 || opts.activeOnly === true ? 1 : 0
     const resp = await http.get(`/boms/by-product/${productId}`, { params })
     return resp.data
   },
@@ -269,10 +269,10 @@ export const routingApi = {
     const resp = await http.get('/routings')
     return resp.data
   },
-  async byProduct(productId: number | string, opts?: { version?: string; activeOnly?: boolean }): Promise<Routing[]> {
+  async byProduct(productId: number | string, opts?: { version?: string; activeOnly?: boolean | number }): Promise<Routing[]> {
     const params: any = {}
     if (opts?.version) params.version = opts.version
-    if (opts?.activeOnly) params.active_only = 1
+    if (opts?.activeOnly !== undefined) params.active_only = Number(opts.activeOnly) === 1 || opts.activeOnly === true ? 1 : 0
     const resp = await http.get(`/routings/by-product/${productId}`, { params })
     return resp.data
   },
