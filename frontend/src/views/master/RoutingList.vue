@@ -9,6 +9,8 @@
           <el-checkbox v-model="filterActiveOnly">仅激活</el-checkbox>
           <el-button size="small" @click="applyFilter">筛选</el-button>
           <el-button type="primary" @click="openAdd">新建路线</el-button>
+          <el-button @click="openEdit" :disabled="!current">编辑路线</el-button>
+          <el-button type="danger" @click="deleteRouting" :disabled="!current">删除路线</el-button>
         </div>
       </div>
     </template>
@@ -45,7 +47,11 @@
       <el-form :model="form" label-width="90px">
         <el-form-item label="路线编码"><el-input v-model="form.code"/></el-form-item>
         <el-form-item label="名称"><el-input v-model="form.name"/></el-form-item>
-        <el-form-item label="产品编码"><el-input v-model="form.productCode"/></el-form-item>
+        <el-form-item label="产品">
+          <el-select v-model="form.productCode" filterable placeholder="选择成品物料">
+            <el-option v-for="m in allMaterials.filter(mm=>mm.type==='成品')" :key="m.code" :label="m.name + ' (' + m.code + ')'" :value="m.code"/>
+          </el-select>
+        </el-form-item>
         <el-form-item label="版本"><el-input v-model="form.version"/></el-form-item>
         <el-form-item label="激活"><el-switch v-model="form.is_active"/></el-form-item>
       </el-form>
@@ -60,7 +66,6 @@
         <el-form-item label="工序"><el-select v-model="opForm.operationCode" filterable style="width: 100%" @change="syncOpName">
           <el-option v-for="o in opList" :key="o.code" :label="o.code + ' - ' + o.name" :value="o.code"/>
         </el-select></el-form-item>
-        <el-form-item label="#序号"><el-input v-model="opForm.seq" disabled/></el-form-item>
         <el-form-item label="设备ID"><el-input-number v-model="opForm.equipmentId" :min="0"/></el-form-item>
       </el-form>
       <template #footer>
@@ -83,14 +88,16 @@ const ops = ref<any[]>([])
 const currentOp = ref<any | null>(null)
 
 const dlg = ref(false)
-const form = ref<any>({ code: '', name: '', productCode: '', version: '1.0', is_active: true })
+const form = ref<any>({ code: '', name: '', productCode: '', version: '1.0', is_active: false })
+const headerMode = ref<'create'|'edit'>('create')
 const dlgOp = ref(false)
-const opForm = ref<any>({ seq: 1, operationCode: '', operationName: '', equipmentId: undefined })
+const opForm = ref<any>({ operationCode: '', operationName: '', equipmentId: undefined })
 const filterProductCode = ref('')
 const filterVersion = ref('')
 const filterActiveOnly = ref(true)
 const opFormMode = ref<'add'|'edit'>('add')
 const opList = ref<any[]>([])
+const allMaterials = ref<Material[]>([])
 
 async function loadOps() {
   try {
@@ -114,7 +121,7 @@ async function applyFilter(){
     const mats = await materialApi.list()
     const prod = mats.find(m=>m.code===filterProductCode.value)
     if (!prod) { list.value = []; return }
-    list.value = await routingApi.byProduct(prod.id, { version: filterVersion.value || undefined, activeOnly: filterActiveOnly.value })
+    list.value = await routingApi.byProduct(prod.id, { version: filterVersion.value || undefined, activeOnly: filterActiveOnly.value ? 1 : 0 })
   } catch (e) { console.error(e) }
 }
 
@@ -139,7 +146,27 @@ function selOp(row: RoutingOp) {
 }
 
 function openAdd() {
-  form.value = { code: '', name: '', productCode: '', version: '1.0', is_active: true }
+  form.value = { code: '', name: '', productCode: '', version: '1.0', is_active: false }
+  headerMode.value = 'create'
+  dlg.value = true
+}
+
+function openEdit() {
+  if (!current.value) return
+  const mats = list.value // 当前列表含有 product_id
+  form.value = {
+    code: (current.value as any).code || '',
+    name: (current.value as any).name || '',
+    productCode: '',
+    version: (current.value as any).version || '1.0',
+    is_active: !!(current.value as any).is_active
+  }
+  // 尝试将 product_id 映射到物料编码
+  materialApi.list().then(mm => {
+    const prodMat = mm.find(m => String(m.id) === String((current.value as any).product_id))
+    if (prodMat) form.value.productCode = prodMat.code
+  })
+  headerMode.value = 'edit'
   dlg.value = true
 }
 
@@ -150,20 +177,80 @@ async function save() {
     if (!prod) throw new Error('未找到对应的成品物料，请先在物料中创建')
     const payload = { code: form.value.code, name: form.value.name, product_id: Number(prod.id), version: form.value.version, is_active: form.value.is_active ? 1 : 0, items: [] }
     if (!payload.code || !payload.name) throw new Error('请填写路线编码与名称')
-    await routingApi.create(payload)
+    if (headerMode.value === 'create') {
+      // 若新建为激活，需要校验唯一性
+      if (Number(payload.is_active) === 1) {
+        const existingActives = await routingApi.byProduct(Number(prod.id), { activeOnly: 1 })
+        if (existingActives && existingActives.length > 0) {
+          await ElMessageBox.alert('该产品已存在激活的工艺路线，无法再新建为激活。请取消激活或编辑现有路线。', '激活冲突', { type: 'warning' })
+          return
+        }
+      }
+      await routingApi.create(payload)
+    } else {
+      // 编辑：保留 items，仅更新头信息，并校验激活唯一
+      const detail = list.value.find((r:any)=> String(r.id) === String((current.value as any).id))
+      if (payload.is_active === 1) {
+        const existingActives = await routingApi.byProduct(Number(payload.product_id), { activeOnly: 1 })
+        const others = (existingActives || []).filter((r:any)=> String(r.id) !== String((current.value as any).id))
+        if (others.length > 0) {
+          await ElMessageBox.alert('该产品已存在激活的工艺路线，无法将当前路线设为激活。请先取消其他激活版本。', '激活冲突', { type: 'warning' })
+          return
+        }
+      }
+      await routingApi.update((current.value as any).id, {
+        ...payload,
+        items: (detail?.items || []).map((it:any)=>({ operation_id: it.operation_id, sequence: it.sequence, equipment_id: it.equipment_id, standard_time: it.standard_time, setup_time: it.setup_time, description: it.description }))
+      })
+    }
     await applyFilter()
     dlg.value = false
+    headerMode.value = 'create'
   } catch (error) {
     console.error('保存工艺路线失败:', error)
+    try { await ElMessageBox.alert(String((error as any)?.message || '保存失败'), '错误', { type: 'error' }) } catch {}
+  }
+}
+
+async function deleteRouting() {
+  if (!current.value) return
+  try {
+    await ElMessageBox.confirm('确认删除该工艺路线？删除后不可恢复。', '提示', { type: 'warning' })
+  } catch { return }
+  try {
+    await routingApi.remove((current.value as any).id)
+    current.value = null
+    ops.value = []
+    await applyFilter()
+  } catch (e) {
+    console.error('删除工艺路线失败:', e)
   }
 }
 
 onMounted(() => {
   loadRoutings()
   loadOps()
+  materialApi.list().then(ms=> allMaterials.value = ms).catch(()=>{})
 })
-function openAddOp(){ if(!current.value) return; const seq = (current.value.ops?.length || 0) + 1; opForm.value = { seq, operationCode: '', operationName: '' } as any; opFormMode.value='add'; dlgOp.value = true }
-function openEditOp(){ if(!current.value || !currentOp.value) return; opForm.value = { ...currentOp.value } as any; opFormMode.value='edit'; dlgOp.value = true }
+function openAddOp(){
+  if(!current.value) return;
+  // 新建时不显式填写序号，后端按现有顺序自动追加到末尾
+  opForm.value = { operationCode: '', operationName: '', equipmentId: undefined } as any;
+  opFormMode.value='add';
+  dlgOp.value = true;
+}
+function openEditOp(){
+  if(!current.value || !currentOp.value) return;
+  // 编辑时默认展示当前工序与设备ID
+  const opMeta = opList.value.find((o:any)=> String(o.id) === String(currentOp.value.operation_id))
+  opForm.value = {
+    operationCode: opMeta?.code || '',
+    operationName: opMeta?.name || '',
+    equipmentId: currentOp.value.equipment_id
+  } as any;
+  opFormMode.value='edit';
+  dlgOp.value = true;
+}
 function syncOpName(){ const opMeta = opList.value.find(o => o.code === opForm.value.operationCode); opForm.value.operationName = opMeta ? opMeta.name : '' }
 async function saveOp(){
   if(!current.value) return;
@@ -180,7 +267,8 @@ async function saveOp(){
   if (opFormMode.value==='add') {
     updatedItems = [...existingItems, { operation_id: Number(opMeta.id), sequence: (existingItems.length||0)+1, equipment_id: opForm.value.equipmentId }]
   } else {
-    updatedItems = existingItems.map((x:any)=> x.sequence===opForm.value.seq ? { ...x, operation_id: Number(opMeta.id), equipment_id: opForm.value.equipmentId } : x)
+    // 根据当前选中行的 sequence 进行替换，序号不在表单中体现
+    updatedItems = existingItems.map((x:any)=> x.sequence===currentOp.value.sequence ? { ...x, operation_id: Number(opMeta.id), equipment_id: opForm.value.equipmentId } : x)
   }
   updatedItems.sort((a:any,b:any)=>a.sequence-b.sequence).forEach((x:any,i:number)=>x.sequence=i+1)
   await routingApi.update(current.value!.id, { items: updatedItems })
@@ -235,7 +323,7 @@ async function swapByIndex(aIdx: number, bIdx: number){
     // 拉取最新详情以避免本地状态与后端不一致
     const latestList = await routingApi.list()
     const detail = latestList.find((r:any)=>r.id===(current.value as any).id)
-    const existing = (detail?.items || [])
+    const existing = ((detail as any)?.items || [])
     if(existing.length===0) return
     // 按 sequence 排序，基于索引交换
     const sorted = [...existing].sort((x:any,y:any)=>Number(x.sequence)-Number(y.sequence))
