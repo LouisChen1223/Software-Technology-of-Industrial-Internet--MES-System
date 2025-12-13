@@ -52,6 +52,17 @@ def init_db():
         ]
         db.add_all(uoms)
         db.commit()
+
+        # 1.5 物料类型
+        print("- Creating material types...")
+        material_types = [
+            MaterialType(code="原材料", name="原材料", description="原材料类"),
+            MaterialType(code="半成品", name="半成品", description="半成品类"),
+            MaterialType(code="成品", name="成品", description="成品类"),
+            MaterialType(code="耗材", name="耗材", description="耗材/辅料"),
+        ]
+        db.add_all(material_types)
+        db.commit()
         
         # 2. 仓库
         print("- Creating warehouses...")
