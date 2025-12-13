@@ -26,6 +26,7 @@
               <el-menu-item index="/master/shifts">班次</el-menu-item>
               <el-menu-item index="/master/warehouses">仓库</el-menu-item>
               <el-menu-item index="/master/uoms">计量单位</el-menu-item>
+              <el-menu-item index="/master/material-types">物料类型</el-menu-item>
             </el-sub-menu>
           </el-menu>
         </el-aside>
@@ -35,7 +36,6 @@
       </el-container>
     </el-container>
   </el-config-provider>
-  
 </template>
 
 <script setup lang="ts">
@@ -59,7 +59,9 @@ function goHome() {
 :root.dark {
   filter: invert(1) hue-rotate(180deg);
 }
-html, body, #app {
+html,
+body,
+#app {
   margin: 0;
   padding: 0;
   height: 100%;
@@ -70,7 +72,14 @@ html, body, #app {
   padding: 0 12px;
   border-bottom: 1px solid #eee;
 }
-.brand { font-weight: 600; }
-.spacer { flex: 1; }
-.app-aside { border-right: 1px solid #eee; }
+.brand {
+  font-weight: 600;
+}
+.spacer {
+  flex: 1;
+}
+.app-aside {
+  border-right: 1px solid #eee;
+}
 </style>
+

@@ -33,6 +33,34 @@ class UOMResponse(UOMBase):
         from_attributes = True
 
 
+# Material Type Schemas
+class MaterialTypeBase(BaseModel):
+    code: str = Field(..., max_length=50)
+    name: str = Field(..., max_length=100)
+    description: Optional[str] = None
+    active: Optional[int] = 1
+
+
+class MaterialTypeCreate(MaterialTypeBase):
+    pass
+
+
+class MaterialTypeUpdate(BaseModel):
+    code: Optional[str] = Field(None, max_length=50)
+    name: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = None
+    active: Optional[int] = None
+
+
+class MaterialTypeResponse(MaterialTypeBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # Warehouse Schemas
 class WarehouseBase(BaseModel):
     code: str = Field(..., max_length=50)

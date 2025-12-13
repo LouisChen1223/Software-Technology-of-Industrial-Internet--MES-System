@@ -9,8 +9,10 @@ from app.models.master import (
     UOM, Warehouse, Material, BOM, BOMItem, 
     Operation, Equipment, Tooling, Personnel, Shift, Routing, RoutingItem
 )
+from app.models.material_type import MaterialType
 from app.schemas.master import (
     UOMCreate, UOMUpdate, UOMResponse,
+    MaterialTypeCreate, MaterialTypeUpdate, MaterialTypeResponse,
     WarehouseCreate, WarehouseUpdate, WarehouseResponse,
     MaterialCreate, MaterialUpdate, MaterialResponse,
     BOMCreate, BOMUpdate, BOMResponse,
@@ -78,6 +80,60 @@ def delete_uom(uom_id: int, db: Session = Depends(get_db)):
     db.delete(db_uom)
     db.commit()
     return {"message": "UOM deleted successfully"}
+
+
+# ==================== Material Type APIs ====================
+@router.post("/material-types", response_model=MaterialTypeResponse, tags=["Master Data"])
+def create_material_type(material_type: MaterialTypeCreate, db: Session = Depends(get_db)):
+    """创建物料类型"""
+    logger.info(f"创建物料类型: {material_type.code} - {material_type.name}")
+    db_type = MaterialType(**material_type.dict())
+    db.add(db_type)
+    db.commit()
+    db.refresh(db_type)
+    return db_type
+
+
+@router.get("/material-types", response_model=List[MaterialTypeResponse], tags=["Master Data"])
+def get_material_types(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """获取物料类型列表"""
+    return db.query(MaterialType).offset(skip).limit(limit).all()
+
+
+@router.get("/material-types/{type_id}", response_model=MaterialTypeResponse, tags=["Master Data"])
+def get_material_type(type_id: int, db: Session = Depends(get_db)):
+    """获取物料类型详情"""
+    mt = db.query(MaterialType).filter(MaterialType.id == type_id).first()
+    if not mt:
+        raise HTTPException(status_code=404, detail="Material type not found")
+    return mt
+
+
+@router.put("/material-types/{type_id}", response_model=MaterialTypeResponse, tags=["Master Data"])
+def update_material_type(type_id: int, material_type: MaterialTypeUpdate, db: Session = Depends(get_db)):
+    """更新物料类型"""
+    db_type = db.query(MaterialType).filter(MaterialType.id == type_id).first()
+    if not db_type:
+        raise HTTPException(status_code=404, detail="Material type not found")
+
+    for key, value in material_type.dict(exclude_unset=True).items():
+        setattr(db_type, key, value)
+
+    db.commit()
+    db.refresh(db_type)
+    return db_type
+
+
+@router.delete("/material-types/{type_id}", tags=["Master Data"])
+def delete_material_type(type_id: int, db: Session = Depends(get_db)):
+    """删除物料类型"""
+    db_type = db.query(MaterialType).filter(MaterialType.id == type_id).first()
+    if not db_type:
+        raise HTTPException(status_code=404, detail="Material type not found")
+
+    db.delete(db_type)
+    db.commit()
+    return {"message": "Material type deleted successfully"}
 
 
 # ==================== Warehouse APIs ====================

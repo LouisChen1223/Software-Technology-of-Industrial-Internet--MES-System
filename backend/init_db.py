@@ -5,8 +5,9 @@
 from app.database import engine, Base, SessionLocal
 from app.models.master import (
     UOM, Warehouse, Material, BOM, BOMItem,
-    Operation, Equipment, Tooling, Personnel, Shift, Routing, RoutingItem
+    Operation, Equipment, Tooling, Personnel, Shift, Routing, RoutingItem,
 )
+from app.models.material_type import MaterialType
 from app.models.workorder import WorkOrder, WorkOrderOperation, WorkReport, WIPTracking
 from app.models.inventory import Inventory, MaterialTransaction, MaterialPick, MaterialPickItem
 from datetime import datetime, timedelta
@@ -104,6 +105,17 @@ def init_db():
             UOM(code="SET", name="套", description="成套单位"),
         ]
         db.add_all(uoms)
+        db.commit()
+
+        # 1.5 物料类型
+        print("- Creating material types...")
+        material_types = [
+            MaterialType(code="原材料", name="原材料", description="原材料类"),
+            MaterialType(code="半成品", name="半成品", description="半成品类"),
+            MaterialType(code="成品", name="成品", description="成品类"),
+            MaterialType(code="耗材", name="耗材", description="耗材/辅料"),
+        ]
+        db.add_all(material_types)
         db.commit()
         
         # 2. 仓库

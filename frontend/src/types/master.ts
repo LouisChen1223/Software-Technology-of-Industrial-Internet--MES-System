@@ -1,12 +1,11 @@
 // 主数据类型定义
-
 export interface Material {
   id: string // 唯一ID
   code: string // 物料编码
   name: string
   spec?: string // 规格型号
-  uom: string // 单位
-  type?: string // 原材料/半成品/成品/耗材
+  uom: string // 单位（UOM 主数据中的 ID 字符串）
+  type?: string // 物料类型编码（如 原材料/半成品/成品/耗材）
   version?: string // 版本号
   active: boolean
   createdAt: string
@@ -119,6 +118,13 @@ export interface Uom {
   active: boolean
 }
 
+export interface MaterialType {
+  id: string
+  code: string // 类型编码
+  name?: string // 类型名称
+  active: boolean
+}
+
 export interface MasterChangeLog {
   id: string
   entity: string
@@ -128,3 +134,4 @@ export interface MasterChangeLog {
   time: string
   diff?: Record<string, any>
 }
+

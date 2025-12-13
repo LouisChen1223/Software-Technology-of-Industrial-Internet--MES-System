@@ -1,5 +1,5 @@
 import http from './http'
-import type { Material, BomHeader, BomItem, Operation, Routing, Equipment, Tooling, Person, Shift, Warehouse, Uom } from '@/types/master'
+import type { Material, BomHeader, BomItem, Operation, Routing, Equipment, Tooling, Person, Shift, Warehouse, Uom, MaterialType } from '@/types/master'
 
 // UOM API
 export const uomApi = {
@@ -43,6 +43,47 @@ export const uomApi = {
   },
   async remove(id: number | string): Promise<void> {
     await http.delete(`/uoms/${id}`)
+  }
+}
+
+// Material Type API
+export const materialTypeApi = {
+  toClient(t: any): MaterialType {
+    return {
+      id: String(t.id),
+      code: t.code,
+      name: t.name,
+      active: t.active === undefined ? true : !!t.active,
+    }
+  },
+  toServer(data: Partial<MaterialType>): any {
+    const payload: any = {}
+    if (data.code !== undefined) payload.code = data.code
+    if (data.name !== undefined) payload.name = data.name
+    if (data.active !== undefined) payload.active = data.active ? 1 : 0
+    return payload
+  },
+  async list(): Promise<MaterialType[]> {
+    const resp = await http.get('/material-types')
+    return Array.isArray(resp.data) ? resp.data.map(this.toClient) : []
+  },
+  async create(data: Partial<MaterialType>): Promise<MaterialType> {
+    const resp = await http.post('/material-types', this.toServer(data))
+    return this.toClient(resp.data)
+  },
+  async update(id: number | string, data: Partial<MaterialType>): Promise<MaterialType> {
+    const resp = await http.put(`/material-types/${id}`, this.toServer(data))
+    return this.toClient(resp.data)
+  },
+  async upsert(t: MaterialType): Promise<MaterialType> {
+    if (t.id) {
+      return await this.update(t.id, t)
+    } else {
+      return await this.create(t)
+    }
+  },
+  async remove(id: number | string): Promise<void> {
+    await http.delete(`/material-types/${id}`)
   }
 }
 
