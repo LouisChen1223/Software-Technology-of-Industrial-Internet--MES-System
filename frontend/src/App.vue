@@ -11,6 +11,7 @@
         <el-aside width="240px" class="app-aside">
           <el-menu :default-active="$route.path" class="el-menu-vertical-demo" router>
             <el-menu-item index="/work-orders">工单台账</el-menu-item>
+            <el-menu-item index="/scheduling">排班/排程</el-menu-item>
             <el-menu-item index="/hmi">工位HMI</el-menu-item>
             <el-menu-item index="/wip">WIP看板</el-menu-item>
             <el-menu-item index="/inventory">库存/出入库</el-menu-item>

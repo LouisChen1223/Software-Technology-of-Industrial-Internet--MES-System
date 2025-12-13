@@ -1,4 +1,4 @@
-export type WorkOrderStatus = 'draft' | 'released' | 'in-progress' | 'completed' | 'cancelled'
+export type WorkOrderStatus = 'draft' | 'released' | 'in_progress' | 'completed' | 'cancelled'
 
 export interface WorkOrder {
   id?: number

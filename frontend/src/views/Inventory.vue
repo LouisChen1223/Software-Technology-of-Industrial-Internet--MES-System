@@ -13,9 +13,10 @@
       </div>
     </template>
     <div class="toolbar">
-      <el-button type="primary" @click="issue">领料</el-button>
-      <el-button @click="supplement">补料</el-button>
-      <el-button type="warning" @click="returnBack">退料</el-button>
+      <el-button type="primary" @click="openPick">普通领料</el-button>
+      <el-button type="primary" @click="openBOMPick">按BOM领料</el-button>
+      <el-button @click="openSupplement">补料(入库)</el-button>
+      <el-button type="warning" @click="openReturn">退料(入库)</el-button>
     </div>
     <el-table :data="filtered" height="60vh" stripe>
       <el-table-column prop="material" label="物料"/>
@@ -24,12 +25,38 @@
       <el-table-column prop="qty" label="数量" width="100"/>
       <el-table-column prop="uom" label="单位" width="80"/>
     </el-table>
+
+    <!-- 操作对话框 -->
+    <el-dialog v-model="dlgVisible" :title="dlgTitle" width="520px">
+      <el-form :model="form" label-width="110px">
+        <el-form-item label="工单ID" v-if="dlg!=='supplement' && dlg!=='return'">
+          <el-input-number v-model="(form as any).work_order_id" :min="1" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="物料ID" v-if="dlg!=='bom'">
+          <el-input-number v-model="(form as any).material_id" :min="1" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="仓库ID">
+          <el-input-number v-model="(form as any).warehouse_id" :min="1" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="批次">
+          <el-input v-model="(form as any).batch_number" />
+        </el-form-item>
+        <el-form-item label="数量" v-if="dlg!=='bom'">
+          <el-input-number v-model="(form as any).quantity" :min="1" style="width:100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="closeDlg">取消</el-button>
+        <el-button type="primary" @click="submit">确认</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import * as XLSX from 'xlsx'
+import { inventoryApi } from '@/api/inventory'
 
 interface Inv { material: string; lot: string; loc: string; qty: number; uom: string }
 const list = ref<Inv[]>([])
@@ -40,17 +67,79 @@ const filtered = computed(() => {
   return list.value.filter(r => (r.material + r.lot + r.loc).includes(q.value))
 })
 
-function loadData() {
-  list.value = [
-    { material: 'MAT-001', lot: 'L20251112A', loc: 'A01-01', qty: 120, uom: 'PCS' },
-    { material: 'MAT-002', lot: 'L20251112B', loc: 'A01-02', qty: 80, uom: 'PCS' },
-    { material: 'MAT-003', lot: 'L20251101A', loc: 'B02-01', qty: 200, uom: 'PCS' }
-  ]
+async function loadData() {
+  const resp = await inventoryApi.list()
+  // 简易映射（需要结合主数据才能显示物料编码等，这里只填关键字段）
+  list.value = resp.map(r => ({
+    material: `MAT-${r.material_id}`,
+    lot: r.batch_number || '-',
+    loc: r.location || '-',
+    qty: r.available_quantity,
+    uom: 'PCS'
+  }))
 }
 
-function issue() { console.info('issue selected rows or open dialog') }
-function supplement() { console.info('supplement materials') }
-function returnBack() { console.info('return materials') }
+// 对话框与表单
+const dlg = ref<'pick' | 'bom' | 'supplement' | 'return' | ''>('')
+const dlgVisible = computed({
+  get: () => dlg.value !== '',
+  set: (v: boolean) => { if (!v) dlg.value = '' }
+})
+const dlgTitle = computed(() => dlg.value === 'pick' ? '普通领料' : dlg.value === 'bom' ? '按BOM领料' : dlg.value === 'supplement' ? '补料入库' : dlg.value === 'return' ? '退料入库' : '')
+const form = ref({
+  work_order_id: undefined as number | undefined,
+  material_id: undefined as number | undefined,
+  warehouse_id: 1,
+  batch_number: '',
+  quantity: 1
+})
+
+function openPick() { dlg.value = 'pick' }
+function openBOMPick() { dlg.value = 'bom' }
+function openSupplement() { dlg.value = 'supplement' }
+function openReturn() { dlg.value = 'return' }
+
+function closeDlg() { dlg.value = '' }
+
+async function submit() {
+  try {
+    if (dlg.value === 'pick') {
+      await inventoryApi.trans({
+        transaction_type: 'pick',
+        material_id: form.value.material_id!,
+        warehouse_id: form.value.warehouse_id,
+        work_order_id: form.value.work_order_id,
+        batch_number: form.value.batch_number,
+        quantity: form.value.quantity,
+        reference_no: 'UI-PICK'
+      })
+    } else if (dlg.value === 'supplement') {
+      await inventoryApi.trans({
+        transaction_type: 'receive',
+        material_id: form.value.material_id!,
+        warehouse_id: form.value.warehouse_id,
+        batch_number: form.value.batch_number,
+        quantity: form.value.quantity,
+        reference_no: 'UI-SUPPLEMENT'
+      })
+    } else if (dlg.value === 'return') {
+      await inventoryApi.trans({
+        transaction_type: 'return',
+        material_id: form.value.material_id!,
+        warehouse_id: form.value.warehouse_id,
+        batch_number: form.value.batch_number,
+        quantity: form.value.quantity,
+        reference_no: 'UI-RETURN'
+      })
+    } else if (dlg.value === 'bom') {
+      await inventoryApi.createPickFromBOM(form.value.work_order_id!, form.value.warehouse_id)
+    }
+    dlg.value = ''
+    await loadData()
+  } catch (e) {
+    console.error('操作失败', e)
+  }
+}
 
 function onImport(file: any) {
   const reader = new FileReader()

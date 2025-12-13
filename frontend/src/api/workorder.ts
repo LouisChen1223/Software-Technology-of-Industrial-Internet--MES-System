@@ -67,8 +67,20 @@ export const workorderApi = {
     await http.delete(`/work-orders/${id}`)
   },
   
-  async updateStatus(id: string, status: string): Promise<WorkOrder> {
-    const resp = await http.patch(`/work-orders/${id}/status`, { status })
+  async release(id: string): Promise<WorkOrder> {
+    const resp = await http.post(`/work-orders/${id}/release`)
+    return toFrontendFormat(resp.data)
+  },
+  async start(id: string): Promise<WorkOrder> {
+    const resp = await http.post(`/work-orders/${id}/start`)
+    return toFrontendFormat(resp.data)
+  },
+  async complete(id: string): Promise<WorkOrder> {
+    const resp = await http.post(`/work-orders/${id}/complete`)
+    return toFrontendFormat(resp.data)
+  },
+  async cancel(id: string): Promise<WorkOrder> {
+    const resp = await http.post(`/work-orders/${id}/cancel`)
     return toFrontendFormat(resp.data)
   }
 }

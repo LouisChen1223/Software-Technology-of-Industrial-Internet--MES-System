@@ -13,19 +13,20 @@
       <div class="left">
         <el-form :model="report" label-width="80px" size="small">
           <el-form-item label="工序">
-            <el-select v-model="report.op" placeholder="选择工序">
-              <el-option v-for="op in ops" :key="op" :value="op" :label="op" />
+            <el-select v-model="report.operationId" placeholder="选择工序">
+              <el-option v-for="op in ops" :key="op.id" :value="op.id" :label="`${op.code} - ${op.name}`" />
             </el-select>
           </el-form-item>
           <el-form-item label="数量">
-            <el-input-number v-model="report.qty" :min="1" />
+            <el-input-number v-model="report.quantity" :min="1" />
           </el-form-item>
           <el-form-item label="动作">
-            <el-select v-model="report.action" placeholder="动作">
+            <el-select v-model="report.report_type" placeholder="动作">
               <el-option label="开工" value="start" />
               <el-option label="完工" value="complete" />
               <el-option label="报废" value="scrap" />
               <el-option label="暂停" value="pause" />
+              <el-option label="恢复" value="resume" />
             </el-select>
           </el-form-item>
           <el-form-item label="条码">
@@ -57,6 +58,7 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import QrScanner from '@/components/QrScanner.vue'
 import http from '@/api/http'
 import { operationApi } from '@/api/masterData'
+import { reportApi, type WorkReport } from '@/api/report'
 
 const woList = ref<any[]>([])
 const currentWO = ref<string>('')
@@ -68,7 +70,7 @@ interface HistoryItem { id: number; time: string; type: string; desc: string }
 const history = ref<HistoryItem[]>([])
 let hid = 1
 
-const report = reactive({ op: '', qty: 1, action: '', barcode: '' })
+const report = reactive<{ operationId?: number; quantity: number; report_type?: string; barcode?: string }>({ quantity: 1 })
 
 // 加载工单列表
 async function loadWorkOrders() {
@@ -85,7 +87,7 @@ async function loadOps() {
   if (!currentWOId.value) return
   try {
     const list = await operationApi.list()
-    ops.value = list.map((op: any) => `${op.code} - ${op.name}`)
+    ops.value = list
   } catch (error) {
     console.error('加载工序失败:', error)
     ops.value = []
@@ -106,50 +108,24 @@ watch(currentWO, (newWO) => {
 
 // 提交报工
 async function submit() {
-  if (!currentWOId.value || !report.op || !report.action) return
+  if (!currentWOId.value || !report.operationId || !report.report_type) return
   
   try {
-    // 根据动作类型调用不同的API
-    let apiUrl = ''
-    switch (report.action) {
-      case 'start':
-        apiUrl = `/work-orders/${currentWOId.value}/start`
-        break
-      case 'complete':
-        apiUrl = `/work-orders/${currentWOId.value}/complete`
-        break
-      case 'scrap':
-        // 报废报工
-        await http.post('/work-reports', {
-          work_order_id: currentWOId.value,
-          report_type: 'scrap',
-          quantity: report.qty,
-          barcode: report.barcode
-        })
-        break
-      default:
-        // 普通报工
-        await http.post('/work-reports', {
-          work_order_id: currentWOId.value,
-          report_type: 'production',
-          quantity: report.qty,
-          barcode: report.barcode
-        })
+    const payload: WorkReport = {
+      work_order_id: currentWOId.value,
+      work_order_operation_id: report.operationId,
+      report_type: report.report_type as any,
+      quantity: report.quantity,
+      barcode: report.barcode
     }
-    
-    if (apiUrl) {
-      await http.post(apiUrl, {
-        quantity: report.qty,
-        barcode: report.barcode
-      })
-    }
+    await reportApi.create(payload)
     
     // 添加到历史记录
     history.value.unshift({
       id: hid++,
       time: new Date().toLocaleTimeString(),
-      type: report.action === 'scrap' ? 'danger' : 'primary',
-      desc: `${currentWO.value} ${report.op} 动作=${report.action} 数量=${report.qty} 条码=${report.barcode || 'N/A'}`
+      type: report.report_type === 'scrap' ? 'danger' : 'primary',
+      desc: `${currentWO.value} 工序=${report.operationId} 动作=${report.report_type} 数量=${report.quantity} 条码=${report.barcode || 'N/A'}`
     })
     
     reset(false)
@@ -159,9 +135,9 @@ async function submit() {
 }
 
 function reset(clearWO = true) {
-  report.op = ''
-  report.qty = 1
-  report.action = ''
+  report.operationId = undefined
+  report.quantity = 1
+  report.report_type = undefined
   report.barcode = ''
   if (clearWO) currentWO.value = ''
 }

@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 const WorkOrderList = () => import('@/views/WorkOrderList.vue')
 const WorkstationHMI = () => import('@/views/WorkstationHMI.vue')
 const WIPBoard = () => import('@/views/WIPBoard.vue')
+const Scheduling = () => import('@/views/Scheduling.vue')
 const Inventory = () => import('@/views/Inventory.vue')
 // master data
 const Materials = () => import('@/views/master/Materials.vue')
@@ -26,6 +27,7 @@ const router = createRouter({
     { path: '/work-orders', component: WorkOrderList },
     { path: '/hmi', component: WorkstationHMI },
     { path: '/wip', component: WIPBoard },
+    { path: '/scheduling', component: Scheduling },
     { path: '/inventory', component: Inventory },
     {
       path: '/master',

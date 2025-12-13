@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api import master, workorder, inventory, department, workshop
+from app.api.schedule import router as schedule_router
 import logging
 import time
 import os
@@ -63,6 +64,7 @@ app.include_router(workorder, prefix=settings.api_prefix, tags=["Work Order"])
 app.include_router(inventory, prefix=settings.api_prefix, tags=["Inventory"])
 app.include_router(department, prefix=settings.api_prefix, tags=["Master Data"])
 app.include_router(workshop, prefix=settings.api_prefix, tags=["Master Data"])
+app.include_router(schedule_router, prefix=settings.api_prefix, tags=["Scheduling"])
 
 
 @app.get("/")

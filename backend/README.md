@@ -25,6 +25,34 @@
    - 工单执行
    - 扫码报工（开工/完工/暂停/报废）
 
+   ## 工单管理 APIs
+
+   - 创建工单: `POST /work-orders`
+   - 获取工单列表: `GET /work-orders`
+   - 获取工单详情: `GET /work-orders/{id}`
+   - 编辑工单: `PUT /work-orders/{id}`
+   - 删除工单: `DELETE /work-orders/{id}`
+   - 工单下达: `POST /work-orders/{id}/release`（仅 `draft` 可下达）
+   - 开始执行: `POST /work-orders/{id}/start`（需 `released` 状态）
+   - 完成工单: `POST /work-orders/{id}/complete`（需 `in_progress` 状态）
+   - 取消工单: `POST /work-orders/{id}/cancel`
+
+   状态枚举：`draft` | `released` | `in_progress` | `paused` | `completed` | `cancelled`
+
+   示例请求体（创建工单）：
+
+   ```json
+   {
+      "code": "WO-2025-001",
+      "product_id": 1,
+      "planned_quantity": 100,
+      "priority": 5,
+      "planned_start_date": "2025-12-14T08:00:00",
+      "planned_end_date": "2025-12-20T18:00:00",
+      "notes": "试制批次"
+   }
+   ```
+
 3. **物料仓储管理**
    - 领料（普通领料、按BOM领料）
    - 退料

@@ -16,12 +16,16 @@
       <el-table-column prop="qty" label="数量" width="100"/>
       <el-table-column prop="dueDate" label="交期" width="160"/>
       <el-table-column prop="status" label="状态" width="120"/>
-      <el-table-column label="操作" width="320">
+      <el-table-column label="操作" width="480">
         <template #default="{ row }">
           <el-button size="small" @click="edit(row)">编辑</el-button>
           <el-button size="small" type="danger" @click="remove(row.id)">删除</el-button>
           <el-button size="small" @click="goHMI(row)">到HMI执行</el-button>
           <el-button size="small" type="success" @click="viewWIP(row)">查看WIP</el-button>
+          <el-button size="small" type="primary" :disabled="row.status!=='draft'" @click="release(row)">下达</el-button>
+          <el-button size="small" type="warning" :disabled="row.status!=='released'" @click="start(row)">开始</el-button>
+          <el-button size="small" type="success" :disabled="row.status!=='in_progress'" @click="complete(row)">完工</el-button>
+          <el-button size="small" type="danger" :disabled="row.status==='completed'" @click="cancel(row)">取消</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -38,7 +42,7 @@
           <el-select v-model="form.status" style="width: 100%">
             <el-option value="draft" label="草稿"/>
             <el-option value="released" label="已下达"/>
-            <el-option value="in-progress" label="执行中"/>
+            <el-option value="in_progress" label="执行中"/>
             <el-option value="completed" label="已完工"/>
             <el-option value="cancelled" label="已取消"/>
           </el-select>
@@ -119,6 +123,42 @@ function goHMI(row: WorkOrder) {
 
 function viewWIP(row: WorkOrder) {
   router.push({ path: '/wip', query: { wo: row.woNo } })
+}
+
+async function release(row: WorkOrder) {
+  try {
+    await workorderApi.release(String(row.id))
+    await load()
+  } catch (error) {
+    console.error('下达工单失败:', error)
+  }
+}
+
+async function start(row: WorkOrder) {
+  try {
+    await workorderApi.start(String(row.id))
+    await load()
+  } catch (error) {
+    console.error('开始工单失败:', error)
+  }
+}
+
+async function complete(row: WorkOrder) {
+  try {
+    await workorderApi.complete(String(row.id))
+    await load()
+  } catch (error) {
+    console.error('完工工单失败:', error)
+  }
+}
+
+async function cancel(row: WorkOrder) {
+  try {
+    await workorderApi.cancel(String(row.id))
+    await load()
+  } catch (error) {
+    console.error('取消工单失败:', error)
+  }
 }
 
 onMounted(() => { load() })
