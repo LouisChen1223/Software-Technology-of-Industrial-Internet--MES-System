@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, or_, func
 from typing import List
 from datetime import datetime
 from app.database import get_db
@@ -20,6 +20,61 @@ from app.schemas.inventory import (
 )
 
 router = APIRouter()
+
+
+def _zone_prefix(wh: Warehouse) -> str:
+    """从仓库表推断所属区的前缀字母，例如 'A区' -> 'A'。默认 'A'。"""
+    if wh and wh.location:
+        s = str(wh.location).strip()
+        if s:
+            return s[0].upper()
+    return "A"
+
+
+def _get_or_assign_location(db: Session, warehouse_id: int, material_id: int) -> str:
+    """按规则分配库位：
+    - 若同仓库+同物料已有任一记录带库位，则复用该库位（同物料同库位）。
+    - 否则，根据仓库所在区生成新库位：'<区>-NN'，NN 为该区在本仓库现有最大编号+1。
+    """
+    # 先查已有库位
+    existing = (
+        db.query(Inventory.location)
+        .filter(
+            Inventory.warehouse_id == warehouse_id,
+            Inventory.material_id == material_id,
+            Inventory.location.isnot(None),
+            func.trim(Inventory.location) != ""
+        )
+        .first()
+    )
+    if existing and existing[0]:
+        return existing[0]
+
+    # 没有则根据区生成新库位
+    wh = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+    prefix = _zone_prefix(wh)
+
+    # 找该仓库当前该区已使用的编号最大值
+    rows = (
+        db.query(Inventory.location)
+        .filter(
+            Inventory.warehouse_id == warehouse_id,
+            Inventory.location.like(f"{prefix}-%")
+        )
+        .all()
+    )
+
+    max_no = 0
+    for (loc,) in rows:
+        try:
+            part = str(loc).split("-", 1)[1]
+            num = int(part)
+            if num > max_no:
+                max_no = num
+        except Exception:
+            continue
+
+    return f"{prefix}-{max_no + 1:02d}"
 
 
 # ==================== Inventory APIs ====================
@@ -143,6 +198,13 @@ def create_material_transaction(transaction: MaterialTransactionCreate, db: Sess
     if not trans_data.get('transaction_date'):
         trans_data['transaction_date'] = datetime.now()
     
+    # 对于入库类事务（receive/return），若未指定库位：
+    # 1) 同仓库+同物料已有库位 -> 复用
+    # 2) 否则按仓库所属区生成新库位（如 A-06）
+    if transaction.transaction_type in ["return", "receive"]:
+        if not trans_data.get("to_location") or str(trans_data.get("to_location")).strip() == "":
+            trans_data["to_location"] = _get_or_assign_location(db, transaction.warehouse_id, transaction.material_id)
+    
     db_trans = MaterialTransaction(**trans_data)
     db.add(db_trans)
     
@@ -171,12 +233,16 @@ def create_material_transaction(transaction: MaterialTransactionCreate, db: Sess
                 batch_number=transaction.batch_number,
                 quantity=transaction.quantity,
                 available_quantity=transaction.quantity,
-                location=transaction.to_location,
+                location=trans_data.get("to_location"),
                 unit_price=transaction.unit_price
             )
             db.add(inventory)
         else:
+            # 累加库存与可用数量；若原先无库位而本次有库位，则补齐库位
             inventory.quantity += transaction.quantity
+            inventory.available_quantity += transaction.quantity
+            if (not inventory.location or str(inventory.location).strip() == "") and trans_data.get("to_location"):
+                inventory.location = trans_data.get("to_location")
     db.commit()
     db.refresh(db_trans)
     logger.info(f"✓ 物料事务完成: ID={db_trans.id}, 类型={transaction.transaction_type}")
