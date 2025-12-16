@@ -21,9 +21,59 @@ router = APIRouter()
 @router.post("/work-orders", response_model=WorkOrderResponse, tags=["Work Order"])
 def create_work_order(work_order: WorkOrderCreate, db: Session = Depends(get_db)):
     """创建工单"""
-    logger.info(f"创建工单: {work_order.code} - 产品ID={work_order.product_id}, 数量={work_order.planned_quantity}")
+    logger.info(f"创建工单: {work_order.code or '[auto]'} - 产品ID={work_order.product_id}, 数量={work_order.planned_quantity}")
+
+    # 校验产品存在
+    product = db.query(Material).filter(Material.id == work_order.product_id).first()
+    if not product:
+        raise HTTPException(status_code=400, detail="Invalid product_id: product not found")
+    # 仅允许选择物料类型为成品的作为工单产品
+    if (product.material_type or '').strip() != '成品':
+        raise HTTPException(status_code=400, detail="product_id must be a '成品' material")
+
     wo_data = work_order.dict(exclude={'operations'})
+    # 若未传工单号，自动生成 WOYYYYMMDDNNN（当日递增序号）
+    if not wo_data.get('code'):
+        today_str = datetime.now().strftime('%Y%m%d')
+        prefix = f"WO{today_str}"
+        # 查找当日最大序号
+        last = (
+            db.query(WorkOrder)
+            .filter(WorkOrder.code.like(f"{prefix}%"))
+            .order_by(WorkOrder.code.desc())
+            .first()
+        )
+        seq = 1
+        if last and last.code.startswith(prefix):
+            try:
+                seq = int(last.code.replace(prefix, '')) + 1
+            except Exception:
+                seq = 1
+        wo_data['code'] = f"{prefix}{seq:03d}"
     db_wo = WorkOrder(**wo_data)
+
+    # 若未指定 routing_id，则按产品选择启用的工艺路线
+    if not db_wo.routing_id:
+        routing = (
+            db.query(Routing)
+            .filter(Routing.product_id == work_order.product_id, Routing.is_active == 1)
+            .order_by(Routing.version.desc())
+            .first()
+        )
+        if routing:
+            db_wo.routing_id = routing.id
+
+    # 若未指定 bom_id，则按产品选择启用的 BOM
+    if not db_wo.bom_id:
+        bom = (
+            db.query(BOM)
+            .filter(BOM.product_id == work_order.product_id, BOM.is_active == 1)
+            .order_by(BOM.version.desc())
+            .first()
+        )
+        if bom:
+            db_wo.bom_id = bom.id
+
     db.add(db_wo)
     db.flush()
     
@@ -90,6 +140,44 @@ def update_work_order(work_order_id: int, work_order: WorkOrderUpdate, db: Sessi
     db.commit()
     db.refresh(db_wo)
     return db_wo
+
+
+@router.post("/work-orders/{work_order_id}/generate-operations", tags=["Work Order"])
+def generate_operations(work_order_id: int, force: bool = False, db: Session = Depends(get_db)):
+    """根据工艺路线为工单生成工序。
+    - 若 force=True，先删除已存在的工序再重建。
+    - 否则在不存在工序时才创建。
+    """
+    db_wo = db.query(WorkOrder).filter(WorkOrder.id == work_order_id).first()
+    if not db_wo:
+        raise HTTPException(status_code=404, detail="Work Order not found")
+    if not db_wo.routing_id:
+        raise HTTPException(status_code=400, detail="Work Order has no routing")
+
+    existing = db.query(WorkOrderOperation).filter(WorkOrderOperation.work_order_id == work_order_id).count()
+    if existing and not force:
+        return {"message": "Operations already exist", "count": existing}
+    if existing and force:
+        db.query(WorkOrderOperation).filter(WorkOrderOperation.work_order_id == work_order_id).delete()
+        db.commit()
+
+    routing = db.query(Routing).filter(Routing.id == db_wo.routing_id).first()
+    if not routing:
+        raise HTTPException(status_code=400, detail="Routing not found")
+
+    for item in routing.items:
+        db.add(WorkOrderOperation(
+            work_order_id=db_wo.id,
+            operation_id=item.operation_id,
+            sequence=item.sequence,
+            equipment_id=item.equipment_id,
+            planned_quantity=db_wo.planned_quantity,
+            status="pending",
+            planned_start_date=db_wo.planned_start_date,
+        ))
+    db.commit()
+    count = db.query(WorkOrderOperation).filter(WorkOrderOperation.work_order_id == work_order_id).count()
+    return {"message": "Operations generated", "count": count}
 
 
 @router.delete("/work-orders/{work_order_id}", tags=["Work Order"])

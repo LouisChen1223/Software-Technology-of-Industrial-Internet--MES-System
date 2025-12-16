@@ -4,13 +4,13 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from app.database import get_db
 from app.models.workorder import WorkOrder, WorkOrderOperation
+from app.models.master import Operation, Equipment
 
 router = APIRouter()
 
 
-def working_slots(start: datetime, hours: float) -> (datetime, datetime):
-    """简单工作时间模型：每日8小时，跨日顺延。"""
-    day_hours = 8
+def working_slots(start: datetime, hours: float, day_hours: float = 8.0) -> (datetime, datetime):
+    """有限能力：每日可用工时 day_hours，跨日顺延。"""
     end = start
     remaining = hours
     while remaining > 0:
@@ -42,20 +42,67 @@ def run_scheduling(db: Session = Depends(get_db)) -> Dict[str, Any]:
     for op in ops:
         equip_id = op.equipment_id or -1  # 未分配设备归到 -1
         cursor = equipment_cursor.get(equip_id, op.planned_start_date or now)
-        # 计算工时：速率1单位/小时
+        # 基于工序标准时间（分钟）计算总工时 = 剩余数量 * 标准时间/60
         qty = max(op.planned_quantity - op.completed_quantity, 0)
-        hours = qty
-        start, end = working_slots(cursor, hours)
+        std_min = 0.0
+        day_hours = 8.0
+        try:
+            std = db.query(Operation).filter(Operation.id == op.operation_id).first()
+            if std and std.standard_time:
+                std_min = float(std.standard_time)
+        except Exception:
+            std_min = 0.0
+        try:
+            if equip_id != -1:
+                eq = db.query(Equipment).filter(Equipment.id == equip_id).first()
+                # 如果设备设置了每日产能（capacity，单位可近似为小时），用它作为每日可用工时
+                if eq and eq.capacity and eq.capacity > 0:
+                    day_hours = float(eq.capacity)
+        except Exception:
+            day_hours = 8.0
+
+        hours = qty * (std_min / 60.0) if std_min > 0 else qty  # 回退到 1件/小时
+        start, end = working_slots(cursor, hours, day_hours)
         equipment_cursor[equip_id] = end
+
+        # 可读性增强：附带编码与名称
+        wo_code = None
+        op_code = None
+        op_name = None
+        eq_code = None
+        try:
+            if op.work_order and getattr(op.work_order, 'code', None):
+                wo_code = op.work_order.code
+        except Exception:
+            pass
+        try:
+            op_obj = db.query(Operation).filter(Operation.id == op.operation_id).first()
+            if op_obj:
+                op_code = op_obj.code
+                op_name = op_obj.name
+        except Exception:
+            pass
+        try:
+            if equip_id != -1:
+                eq_obj = db.query(Equipment).filter(Equipment.id == equip_id).first()
+                if eq_obj:
+                    eq_code = eq_obj.code
+        except Exception:
+            pass
 
         tasks.append({
             "work_order_id": op.work_order_id,
+            "work_order_code": wo_code,
             "operation_id": op.operation_id,
+            "operation_code": op_code,
+            "operation_name": op_name,
             "work_order_operation_id": op.id,
             "equipment_id": equip_id,
+            "equipment_code": eq_code,
             "sequence": op.sequence,
             "start": start.isoformat(),
             "end": end.isoformat(),
+            "duration_hours": hours,
             "planned_quantity": op.planned_quantity,
             "remaining_quantity": qty,
         })

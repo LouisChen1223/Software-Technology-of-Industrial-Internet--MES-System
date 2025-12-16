@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -17,6 +17,14 @@ class WorkOrderOperationBase(BaseModel):
     actual_start_date: Optional[datetime] = None
     actual_end_date: Optional[datetime] = None
 
+    @validator('planned_start_date', 'planned_end_date', 'actual_start_date', 'actual_end_date', pre=True, always=True)
+    def round_to_hour(cls, v):
+        if not v:
+            return v
+        # 支持字符串或 datetime，统一转为整点（分秒归零）
+        dt = v if isinstance(v, datetime) else datetime.fromisoformat(v)
+        return dt.replace(minute=0, second=0, microsecond=0)
+
 
 class WorkOrderOperationCreate(WorkOrderOperationBase):
     pass
@@ -34,7 +42,7 @@ class WorkOrderOperationResponse(WorkOrderOperationBase):
 
 # Work Order Schemas
 class WorkOrderBase(BaseModel):
-    code: str = Field(..., max_length=50)
+    code: Optional[str] = Field(None, max_length=50)
     product_id: int
     bom_id: Optional[int] = None
     routing_id: Optional[int] = None
@@ -51,6 +59,13 @@ class WorkOrderBase(BaseModel):
     sales_order: Optional[str] = None
     notes: Optional[str] = None
     created_by: Optional[str] = None
+
+    @validator('planned_start_date', 'planned_end_date', 'actual_start_date', 'actual_end_date', pre=True, always=True)
+    def round_to_hour(cls, v):
+        if not v:
+            return v
+        dt = v if isinstance(v, datetime) else datetime.fromisoformat(v)
+        return dt.replace(minute=0, second=0, microsecond=0)
 
 
 class WorkOrderCreate(WorkOrderBase):
@@ -74,6 +89,13 @@ class WorkOrderUpdate(BaseModel):
     customer: Optional[str] = None
     sales_order: Optional[str] = None
     notes: Optional[str] = None
+
+    @validator('planned_start_date', 'planned_end_date', 'actual_start_date', 'actual_end_date', pre=True, always=True)
+    def round_to_hour(cls, v):
+        if not v:
+            return v
+        dt = v if isinstance(v, datetime) else datetime.fromisoformat(v)
+        return dt.replace(minute=0, second=0, microsecond=0)
 
 
 class WorkOrderResponse(WorkOrderBase):

@@ -12,10 +12,14 @@
     </template>
     <el-table :data="filtered" height="60vh" stripe>
       <el-table-column prop="woNo" label="工单号" width="140"/>
-      <el-table-column prop="productCode" label="产品"/>
+      <el-table-column prop="productName" label="产品"/>
       <el-table-column prop="qty" label="数量" width="100"/>
       <el-table-column prop="dueDate" label="交期" width="160"/>
-      <el-table-column prop="status" label="状态" width="120"/>
+      <el-table-column prop="status" label="状态" width="120">
+        <template #default="{ row }">
+          {{ statusLabel(row.status) }}
+        </template>
+      </el-table-column>
       <el-table-column label="操作" width="480">
         <template #default="{ row }">
           <el-button size="small" @click="edit(row)">编辑</el-button>
@@ -32,8 +36,14 @@
 
     <el-dialog v-model="dlg" :title="form.id? '编辑工单':'新建工单'" width="600px">
       <el-form :model="form" label-width="110px">
-        <el-form-item label="工单号"><el-input v-model="form.code"/></el-form-item>
-        <el-form-item label="产品ID"><el-input-number v-model="(form as any).product_id" :min="1" style="width:100%"/></el-form-item>
+        <el-form-item label="工单号">
+          <el-input v-model="form.code" placeholder="保存后自动生成" disabled/>
+        </el-form-item>
+        <el-form-item label="产品">
+          <el-select v-model="(form as any).product_id" placeholder="选择产品" style="width:100%">
+            <el-option v-for="m in materials" :key="m.id" :label="m.name" :value="Number(m.id)" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="数量"><el-input-number v-model="(form as any).planned_quantity" :min="0" style="width:100%"/></el-form-item>
         <el-form-item label="优先级"><el-input-number v-model="(form as any).priority" :min="1" :max="10" style="width:100%"/></el-form-item>
         <el-form-item label="计划开工"><el-date-picker v-model="(form as any).planned_start_date" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width:100%"/></el-form-item>
@@ -63,8 +73,10 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import type { WorkOrder } from '@/types/order'
 import { workorderApi } from '@/api/workorder'
+import { materialApi } from '@/api/masterData'
 
 const list = ref<WorkOrder[]>([])
+const materials = ref<{ id: string; name: string }[]>([])
 const q = ref('')
 const router = useRouter()
 const dlg = ref(false)
@@ -72,16 +84,37 @@ const form = ref<Partial<WorkOrder>>({ status: 'draft', product_id: 1, planned_q
 
 const filtered = computed(() => {
   if (!q.value) return list.value
-  return list.value.filter(x => [x.woNo, x.productCode, x.status, x.dueDate].join('|').includes(q.value))
+  return list.value.filter(x => [x.woNo, x.productCode, statusLabel(x.status), x.dueDate].join('|').includes(q.value))
 })
 
 function reset() {
   q.value = ''
 }
+function statusLabel(s?: WorkOrder['status']): string {
+  const map: Record<string, string> = {
+    draft: '草稿',
+    released: '已下达',
+    in_progress: '执行中',
+    paused: '暂停',
+    completed: '已完工',
+    cancelled: '已取消'
+  }
+  return s ? (map[s] || s) : ''
+}
 
 async function load() {
   try {
     list.value = await workorderApi.list()
+    const mats = await materialApi.list()
+    // 仅允许选择物料类型为“成品”的作为工单产品
+    const finished = mats.filter(m => (m.type || '').trim() === '成品')
+    materials.value = finished.map(m => ({ id: m.id, name: `${m.code} - ${m.name}` }))
+    // 映射产品名称到工单列表显示
+    const map = new Map(materials.value.map(m => [m.id, m.name]))
+    list.value = list.value.map(x => ({
+      ...x,
+      productName: map.get(String(x.product_id)) || String(x.product_id)
+    }))
   } catch (error) {
     console.error('加载工单失败:', error)
   }
@@ -109,6 +142,15 @@ async function remove(id: string) {
 async function save() {
   try {
     const obj = { ...form.value } as WorkOrder
+    // 将日期分钟秒归零到整点，前端提交更干净（后端亦有校验）
+    const normalize = (s?: string) => {
+      if (!s) return s
+      const d = new Date(s)
+      d.setMinutes(0, 0, 0)
+      return d.toISOString()
+    }
+    obj.planned_start_date = normalize(obj.planned_start_date)
+    obj.planned_end_date = normalize(obj.planned_end_date)
     await workorderApi.upsert(obj)
     dlg.value = false
     await load()

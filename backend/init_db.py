@@ -271,25 +271,40 @@ def init_db():
         db.add_all(inventory_list)
         db.commit()
         
-        # 12. 示例工单
+        # 12. 示例工单（时间精确到小时）
         print("- Creating sample work orders...")
-        today = datetime.now()
+        today = datetime.now().replace(minute=0, second=0, microsecond=0)
         work_order = WorkOrder(
             code=f"WO{today.strftime('%Y%m%d')}001",
             product_id=6,
             bom_id=bom.id,
             routing_id=routing.id,
             planned_quantity=10,
-            status="draft",
+            status="released",
             priority=5,
             planned_start_date=today,
-            planned_end_date=today + timedelta(days=2),
+            planned_end_date=(today + timedelta(days=2)).replace(minute=0, second=0, microsecond=0),
             customer="客户A",
             sales_order="SO20240001",
             created_by="系统管理员"
         )
         db.add(work_order)
         db.commit()
+
+        # 为示例工单根据工艺路线自动生成工序
+        if work_order.routing_id:
+            r_items = db.query(RoutingItem).filter(RoutingItem.routing_id == work_order.routing_id).order_by(RoutingItem.sequence.asc()).all()
+            for item in r_items:
+                db.add(WorkOrderOperation(
+                    work_order_id=work_order.id,
+                    operation_id=item.operation_id,
+                    sequence=item.sequence,
+                    equipment_id=item.equipment_id,
+                    planned_quantity=work_order.planned_quantity,
+                    status="pending",
+                    planned_start_date=work_order.planned_start_date,
+                ))
+            db.commit()
         
         # 13. 创建WIP追踪示例数据
         print("- Creating WIP tracking data...")
@@ -299,7 +314,7 @@ def init_db():
                 operation_id=1,  # OP10 装配
                 material_id=6,   # 产品
                 quantity=5,
-                status="in-process",
+                status="wip",
                 location="工位A1",
                 operator_id=1,
                 equipment_id=1
@@ -309,7 +324,7 @@ def init_db():
                 operation_id=2,  # OP20 测试
                 material_id=6,
                 quantity=3,
-                status="pending",
+                status="wip",
                 location="工位A2",
                 operator_id=1,
                 equipment_id=1

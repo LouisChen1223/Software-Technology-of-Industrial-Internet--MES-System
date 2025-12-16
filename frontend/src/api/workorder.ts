@@ -4,7 +4,7 @@ import type { WorkOrder } from '@/types/order'
 // 转换前端数据到后端格式
 function toBackendFormat(data: Partial<WorkOrder>): any {
   return {
-    code: data.code || data.woNo || '',
+    code: data.code || data.woNo || undefined,
     product_id: data.product_id || 1, // 默认产品ID，应该从下拉列表选择
     bom_id: data.bom_id,
     routing_id: data.routing_id,
@@ -28,7 +28,8 @@ function toFrontendFormat(data: any): WorkOrder {
     qty: data.planned_quantity,
     startDate: data.planned_start_date,
     dueDate: data.planned_end_date,
-    remark: data.notes
+    remark: data.notes,
+    // 后端目前不返回产品名称，前端在视图中二次映射
   }
 }
 
