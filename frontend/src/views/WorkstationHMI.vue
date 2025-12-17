@@ -16,6 +16,7 @@
         </el-button>
       </div>
     </template>
+
     <div class="hmi-grid">
       <div class="left">
         <el-form :model="report" label-width="80px" size="small">
@@ -49,11 +50,14 @@
             <el-button @click="reset">重置</el-button>
           </el-form-item>
         </el-form>
+
         <el-divider />
+
         <div v-if="scanning">
           <qr-scanner @detected="onDetected" />
         </div>
       </div>
+
       <div class="right">
         <el-card v-if="currentWODetail" shadow="never" class="right-section">
           <template #header>
@@ -73,6 +77,7 @@
               {{ currentWODetail.completed_quantity }} / {{ currentWODetail.scrapped_quantity }}
             </el-descriptions-item>
           </el-descriptions>
+
           <el-table :data="ops" size="small" border>
             <el-table-column prop="sequence" label="序号" width="70" />
             <el-table-column label="工序" min-width="160">
@@ -137,7 +142,9 @@ const report = reactive<{
   quantity: number
   report_type?: string
   barcode?: string
-}>({ quantity: 1 })
+}>({
+  quantity: 1,
+})
 
 // 加载工单列表
 async function loadWorkOrders() {
@@ -149,7 +156,7 @@ async function loadWorkOrders() {
   }
 }
 
-// 按当前工单计算可选的工序（工单工序），并同步工单进度
+// 加载当前工单的工序（工单工序）并刷新进度
 async function loadOpsForCurrentWO() {
   if (!currentWOId.value) {
     ops.value = []
@@ -157,17 +164,17 @@ async function loadOpsForCurrentWO() {
     return
   }
   try {
-    // 确保已有工序主数据
     if (!allOps.value.length) {
       allOps.value = await operationApi.list()
     }
     const opMap = new Map<number, any>()
     allOps.value.forEach((o: any) => {
       const idNum = Number(o.id)
-      if (!Number.isNaN(idNum)) opMap.set(idNum, o)
+      if (!Number.isNaN(idNum)) {
+        opMap.set(idNum, o)
+      }
     })
 
-    // 获取带工序明细的工单
     const resp = await http.get(`/work-orders/${currentWOId.value}`)
     const wo = resp.data
     currentWODetail.value = wo
@@ -230,17 +237,9 @@ async function submit() {
     return
   }
 
-  // 前端预校验：完工数量不能超过计划数量（工单 & 工序）
+  // 前端预校验：当前工序完工数量不能超过计划数量
   const qty = report.quantity || 0
   if (report.report_type === 'complete') {
-    if (currentWODetail.value) {
-      const woPlanned = currentWODetail.value.planned_quantity || 0
-      const woCompleted = currentWODetail.value.completed_quantity || 0
-      if (woCompleted + qty > woPlanned) {
-        ElMessage.warning('完工数量不能超过工单计划数量')
-        return
-      }
-    }
     const op = ops.value.find((o) => o.id === report.operationId)
     if (op) {
       const opPlanned = op.planned_quantity || 0
@@ -255,7 +254,7 @@ async function submit() {
   try {
     const payload: WorkReport = {
       work_order_id: currentWOId.value,
-      work_order_operation_id: report.operationId, // 使用工单工序 ID
+      work_order_operation_id: report.operationId,
       report_type: report.report_type as any,
       quantity: report.quantity,
       barcode: report.barcode,

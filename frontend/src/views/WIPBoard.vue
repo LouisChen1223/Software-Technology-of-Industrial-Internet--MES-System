@@ -154,7 +154,9 @@ function renderChart() {
     xAxis: {
       type: 'category',
       data: rows.value.map((r) => r.wo + '-' + r.op.split(' ')[0]),
-      axisLabel: { rotate: 45 },
+      axisLabel: {
+        rotate: 0,
+      },
     },
     yAxis: { type: 'value', name: '在制数量' },
     series: [
@@ -220,4 +222,3 @@ onMounted(refresh)
   align-items: center;
 }
 </style>
-
