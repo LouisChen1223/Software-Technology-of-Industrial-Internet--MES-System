@@ -119,6 +119,7 @@ import QrScanner from '@/components/QrScanner.vue'
 import http from '@/api/http'
 import { operationApi } from '@/api/masterData'
 import { reportApi, type WorkReport } from '@/api/report'
+import { wipApi, type WipItem } from '@/api/wip'
 
 const woList = ref<any[]>([])
 const currentWO = ref<string>('')
@@ -175,10 +176,20 @@ async function loadOpsForCurrentWO() {
       }
     })
 
-    const resp = await http.get(`/work-orders/${currentWOId.value}`)
-    const wo = resp.data
+    const [woResp, wipList] = await Promise.all([
+      http.get(`/work-orders/${currentWOId.value}`),
+      wipApi.list({ work_order_id: currentWOId.value }),
+    ])
+    const wo = woResp.data
     currentWODetail.value = wo
     const workOps = wo.operations || []
+
+    const wipMap = new Map<number, number>()
+    ;(wipList as WipItem[]).forEach((item) => {
+      const key = item.operation_id
+      const qty = item.quantity || 0
+      wipMap.set(key, (wipMap.get(key) || 0) + qty)
+    })
 
     ops.value = workOps.map((wop: any) => {
       const base = opMap.get(wop.operation_id)
@@ -191,6 +202,7 @@ async function loadOpsForCurrentWO() {
         planned_quantity: wop.planned_quantity,
         completed_quantity: wop.completed_quantity,
         scrapped_quantity: wop.scrapped_quantity,
+        wip_quantity: wipMap.get(wop.operation_id) || 0,
         status: wop.status,
       }
     })
@@ -237,16 +249,25 @@ async function submit() {
     return
   }
 
-  // 前端预校验：当前工序完工数量不能超过计划数量
+  // 前端预校验：开工/完工的总量不能超过计划数量
   const qty = report.quantity || 0
-  if (report.report_type === 'complete') {
+  if (report.report_type === 'start' || report.report_type === 'complete') {
     const op = ops.value.find((o) => o.id === report.operationId)
     if (op) {
-      const opPlanned = op.planned_quantity || 0
-      const opCompleted = op.completed_quantity || 0
-      if (opCompleted + qty > opPlanned) {
-        ElMessage.warning('当前工序完工数量不能超过计划数量')
-        return
+      const planned = op.planned_quantity || 0
+      const completed = op.completed_quantity || 0
+      const wipQty = op.wip_quantity || 0
+
+      if (report.report_type === 'start') {
+        if (completed + wipQty + qty > planned) {
+          ElMessage.warning('当前工序在制+完工数量不能超过计划数量')
+          return
+        }
+      } else if (report.report_type === 'complete') {
+        if (completed + qty > planned) {
+          ElMessage.warning('当前工序完工数量不能超过计划数量')
+          return
+        }
       }
     }
   }
