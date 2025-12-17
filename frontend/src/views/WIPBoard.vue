@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card>
     <template #header>
       <div class="card-header">
@@ -28,7 +28,7 @@
         v-model="batch"
         filterable
         clearable
-        placeholder="鎵规鍙凤紙姝ｅ悜杩芥函锛?
+        placeholder="批次号（正向追溯）"
         style="width: 240px; margin-right: 8px"
       >
         <el-option
@@ -38,13 +38,13 @@
           :value="b"
         />
       </el-select>
-      <el-button size="small" @click="doTraceBatch">杩芥函鎵规 鈫?鎴愬搧</el-button>
+      <el-button size="small" @click="doTraceBatch">追溯批次 → 成品</el-button>
 
       <el-select
         v-model="serial"
         filterable
         clearable
-        placeholder="搴忓垪鍙凤紙姝ｅ悜/鍙嶅悜锛?
+        placeholder="序列号（正向/逆向）"
         style="width: 240px; margin: 0 8px"
       >
         <el-option
@@ -54,12 +54,12 @@
           :value="s"
         />
       </el-select>
-      <el-button size="small" @click="doTraceSerial">杩芥函搴忓垪</el-button>
+      <el-button size="small" @click="doTraceSerial">追溯序列</el-button>
 
-      <el-button size="small" type="primary" @click="clearTrace">娓呯┖杩芥函缁撴灉</el-button>
+      <el-button size="small" type="primary" @click="clearTrace">清空追溯结果</el-button>
     </div>
 
-        <el-table :data="traceRows" size="small" style="margin-top: 8px" height="30vh">
+    <el-table :data="traceRows" size="small" style="margin-top: 8px" height="30vh">
       <el-table-column prop="wo" label="工单" width="140" />
       <el-table-column prop="op" label="工序" />
       <el-table-column prop="material" label="物料" />
@@ -69,7 +69,7 @@
       <el-table-column prop="status" label="状态" width="120" />
     </el-table>
 
-        <el-table :data="filteredRows" size="small" style="margin-top: 16px" height="40vh">
+    <el-table :data="filteredRows" size="small" style="margin-top: 16px" height="40vh">
       <el-table-column prop="wo" label="工单" width="140" />
       <el-table-column prop="op" label="工序" />
       <el-table-column prop="wip" label="在制数量" width="120" />
@@ -80,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import * as echarts from 'echarts'
 import http from '@/api/http'
 import { wipApi } from '@/api/wip'
@@ -101,23 +101,34 @@ const batch = ref('')
 const serial = ref('')
 const traceRows = ref<any[]>([])
 const batchOptions = ref<string[]>([])
-const serialOptions = ref<string[]>()
-const statusFilter = ref<string>("all")
+const serialOptions = ref<string[]>([])
+const statusFilter = ref<'all' | '在制' | '执行中' | '排队'>('all')
+
 const filteredRows = computed<WipRow[]>(() => {
-  if (statusFilter.value === "all") return rows.value
-  return rows.value.filter(r => r.status === statusFilter.value)
-})([])
+  if (statusFilter.value === 'all') {
+    return rows.value
+  }
+  return rows.value.filter((r) => r.status === statusFilter.value)
+})
+
+function mapStatus(raw: string | null | undefined): string {
+  if (!raw) return '-'
+  if (raw === 'in-process') return '执行中'
+  if (raw === 'pending') return '排队'
+  if (raw === 'wip') return '在制'
+  return raw
+}
 
 async function loadWipData() {
   try {
-    // 鑾峰彇 WIP 杩借釜鏁版嵁
+    // 获取 WIP 在制数据
     const resp = await http.get('/wip-tracking')
     const wipData = resp.data as any[]
 
     const batchSet = new Set<string>()
     const serialSet = new Set<string>()
 
-    // 杞崲涓鸿〃鏍煎拰涓嬫媺閫夐」鏁版嵁
+    // 转成表格数据 + 批次/序列下拉选项
     rows.value = wipData.map((item) => {
       if (item.batch_number) batchSet.add(item.batch_number)
       if (item.serial_number) serialSet.add(item.serial_number)
@@ -132,21 +143,14 @@ async function loadWipData() {
               minute: '2-digit',
             })
           : '-',
-        status:
-          item.status === 'in-process'
-            ? '鎵ц涓?
-            : item.status === 'pending'
-            ? '鎺掗槦'
-            : item.status === 'wip'
-            ? '鍦ㄥ埗'
-            : item.status || '-',
+        status: mapStatus(item.status),
       }
     })
 
     batchOptions.value = Array.from(batchSet)
     serialOptions.value = Array.from(serialSet)
   } catch (error) {
-    console.error('鍔犺浇 WIP 鏁版嵁澶辫触:', error)
+    console.error('加载 WIP 数据失败:', error)
     rows.value = []
     batchOptions.value = []
     serialOptions.value = []
@@ -159,9 +163,14 @@ function renderChart() {
     chart = echarts.init(chartRef.value)
   }
 
-  if (rows.value.length === 0) {
+  const data = filteredRows.value
+
+  if (data.length === 0) {
     chart.setOption({
-      title: { text: '鏆傛棤鏁版嵁', left: 'center', top: 'center' },
+      title: { text: '暂无数据', left: 'center', top: 'center' },
+      xAxis: { show: false },
+      yAxis: { show: false },
+      series: [],
     })
     return
   }
@@ -170,16 +179,16 @@ function renderChart() {
     tooltip: {},
     xAxis: {
       type: 'category',
-      data: rows.value.map((r) => r.wo + '-' + r.op.split(' ')[0]),
+      data: data.map((r) => r.wo + '-' + r.op.split(' ')[0]),
       axisLabel: {
         rotate: 0,
       },
     },
-    yAxis: { type: 'value', name: '鍦ㄥ埗鏁伴噺' },
+    yAxis: { type: 'value', name: '在制数量' },
     series: [
       {
         type: 'bar',
-        data: rows.value.map((r) => r.wip),
+        data: data.map((r) => r.wip),
         itemStyle: { color: '#5470c6' },
       },
     ],
@@ -201,7 +210,7 @@ async function doTraceBatch() {
     batch: item.batch_number || '-',
     serial: item.serial_number || '-',
     qty: item.quantity,
-    status: item.status,
+    status: mapStatus(item.status),
   }))
 }
 
@@ -215,7 +224,7 @@ async function doTraceSerial() {
     batch: item.batch_number || '-',
     serial: item.serial_number || '-',
     qty: item.quantity,
-    status: item.status,
+    status: mapStatus(item.status),
   }))
 }
 
@@ -239,6 +248,4 @@ onMounted(refresh)
   align-items: center;
 }
 </style>
-
-
 
