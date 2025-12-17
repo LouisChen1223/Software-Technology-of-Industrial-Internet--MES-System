@@ -300,7 +300,7 @@ async function submit() {
         warehouse_id: warehouse_id!,
       })
       const batches = Array.from(
-        new Set((invs || []).map((i: any) => i.batch_number).filter(Boolean)),
+        new Set((invs as any[]).map((i) => i.batch_number).filter(Boolean)),
       ) as string[]
       if (!form.value.batch_number) {
         if (batches.length === 1) {
@@ -356,10 +356,32 @@ async function submit() {
         work_order_id,
         warehouse_id!,
       )
-      if (pick && pick.id) {
-        // 自动确认并完成领料，使库存真正扣减
-        await inventoryApi.confirmPick(pick.id)
-        await inventoryApi.completePick(pick.id)
+      if (!pick || !Array.isArray(pick.items) || !pick.items.length) {
+        ElMessage.error('按 BOM 生成领料明细失败')
+        return
+      }
+      // 直接按 BOM 明细生成出库事务（每个明细一笔 pick 事务）
+      for (const item of pick.items as any[]) {
+        const matId = Number(item.material_id)
+        const reqQty = Number(item.required_quantity || 0)
+        if (!matId || reqQty <= 0) continue
+        const invs = await inventoryApi.list({
+          material_id: matId,
+          warehouse_id: warehouse_id!,
+        })
+        const inv = (invs as any[])[0]
+        if (!inv || inv.available_quantity < reqQty) {
+          ElMessage.error(`物料 ${matId} 库存不足，无法按 BOM 领料`)
+          return
+        }
+        await inventoryApi.trans({
+          transaction_type: 'pick',
+          material_id: matId,
+          warehouse_id: warehouse_id!,
+          batch_number: inv.batch_number,
+          quantity: reqQty,
+          reference_no: pick.code || 'UI-BOM-PICK',
+        })
       }
     }
 
@@ -410,3 +432,4 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 </style>
+
