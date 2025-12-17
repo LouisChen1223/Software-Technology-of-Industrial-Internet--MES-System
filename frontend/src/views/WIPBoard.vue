@@ -165,6 +165,9 @@ function renderChart() {
 
   const data = filteredRows.value
 
+  // 每次重绘前先清空，避免“暂无数据”后残留旧的柱状图
+  chart.clear()
+
   if (data.length === 0) {
     chart.setOption({
       title: { text: '暂无数据', left: 'center', top: 'center' },
@@ -248,4 +251,3 @@ onMounted(refresh)
   align-items: center;
 }
 </style>
-
