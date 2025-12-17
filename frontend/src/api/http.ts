@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { ElMessage } from 'element-plus'
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE || 'http://localhost:8000/api/v1',
@@ -30,6 +31,24 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (resp) => resp,
   (error) => {
+    const resp = error.response
+    if (resp) {
+      const status = resp.status
+      let msg = ''
+      const detail = resp.data?.detail
+      if (typeof detail === 'string') {
+        msg = detail
+      } else if (Array.isArray(detail) && detail[0]?.msg) {
+        msg = detail[0].msg
+      } else if (status >= 400 && status < 500) {
+        msg = `请求错误（${status}）`
+      } else {
+        msg = '服务器异常，请稍后重试'
+      }
+      ElMessage.error(msg)
+    } else {
+      ElMessage.error('网络异常，请检查连接')
+    }
     console.error('API Error:', error)
     return Promise.reject(error)
   }
