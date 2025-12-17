@@ -272,8 +272,6 @@ def create_work_report(report: WorkReportCreate, db: Session = Depends(get_db)):
     
     db_report = WorkReport(**report_data)
     db.add(db_report)
-    db_report = WorkReport(**report_data)
-    db.add(db_report)
     
     # 更新工单数量
     if report.report_type == "complete":
@@ -281,7 +279,8 @@ def create_work_report(report: WorkReportCreate, db: Session = Depends(get_db)):
     elif report.report_type == "scrap":
         db_wo.scrapped_quantity += report.quantity
     
-    # 更新工单工序数量
+    # 更新工单工序数量 / 状态
+    db_op = None
     if report.work_order_operation_id:
         db_op = db.query(WorkOrderOperation).filter(
             WorkOrderOperation.id == report.work_order_operation_id
@@ -298,12 +297,66 @@ def create_work_report(report: WorkReportCreate, db: Session = Depends(get_db)):
                     db_op.actual_end_date = datetime.now()
             elif report.report_type == "scrap":
                 db_op.scrapped_quantity += report.quantity
+            elif report.report_type == "pause":
+                # 暂停当前工序
+                if db_op.status == "in_progress":
+                    db_op.status = "paused"
+            elif report.report_type == "resume":
+                # 恢复已暂停工序
+                if db_op.status == "paused":
+                    db_op.status = "in_progress"
+
+    # 同步 WIP 跟踪（按条码），仅在有工单工序且有条码时生效
+    if report.barcode and db_op:
+        qty = report.quantity or 0
+        if qty > 0:
+            wip_item = (
+                db.query(WIPTracking)
+                .filter(
+                    WIPTracking.work_order_id == db_wo.id,
+                    WIPTracking.operation_id == db_op.operation_id,
+                    WIPTracking.batch_number == report.barcode,
+                )
+                .first()
+            )
+
+            if report.report_type == "start":
+                # 开工：将条码视为一批在制品，累加数量
+                if wip_item:
+                    wip_item.quantity = (wip_item.quantity or 0) + qty
+                    wip_item.status = "wip"
+                else:
+                    wip_item = WIPTracking(
+                        work_order_id=db_wo.id,
+                        operation_id=db_op.operation_id,
+                        material_id=db_wo.product_id,
+                        batch_number=report.barcode,
+                        # 为了演示方便，序列号也填同一个条码，便于两种方式追溯
+                        serial_number=report.barcode,
+                        quantity=qty,
+                        status="wip",
+                        operator_id=report.operator_id,
+                        equipment_id=report.equipment_id,
+                    )
+                    db.add(wip_item)
+            elif report.report_type in ("complete", "scrap") and wip_item:
+                # 完工 / 报废：从在制数量中扣减，没有剩余则删掉 WIP 记录
+                remaining = (wip_item.quantity or 0) - qty
+                if remaining > 0:
+                    wip_item.quantity = remaining
+                    wip_item.status = "wip"
+                else:
+                    db.delete(wip_item)
     
     # 更新工单状态
     if report.report_type == "start" and db_wo.status == "released":
         db_wo.status = "in_progress"
         if not db_wo.actual_start_date:
             db_wo.actual_start_date = datetime.now()
+    elif report.report_type == "pause" and db_wo.status == "in_progress":
+        db_wo.status = "paused"
+    elif report.report_type == "resume" and db_wo.status == "paused":
+        db_wo.status = "in_progress"
     
     db.commit()
     db.refresh(db_report)
