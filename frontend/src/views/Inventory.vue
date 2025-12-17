@@ -352,7 +352,15 @@ async function submit() {
         ElMessage.error('请选择有效的工单')
         return
       }
-      await inventoryApi.createPickFromBOM(work_order_id, warehouse_id!)
+      const pick: any = await inventoryApi.createPickFromBOM(
+        work_order_id,
+        warehouse_id!,
+      )
+      if (pick && pick.id) {
+        // 自动确认并完成领料，使库存真正扣减
+        await inventoryApi.confirmPick(pick.id)
+        await inventoryApi.completePick(pick.id)
+      }
     }
 
     dlg.value = ''
@@ -402,4 +410,3 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 </style>
-
