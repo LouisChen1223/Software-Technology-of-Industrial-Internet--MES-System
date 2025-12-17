@@ -83,7 +83,7 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="批次">
+        <el-form-item label="批次" v-if="dlg !== 'bom'">
           <el-input v-model="form.batch_number" />
         </el-form-item>
 
@@ -303,6 +303,10 @@ async function submit() {
         new Set((invs as any[]).map((i) => i.batch_number).filter(Boolean)),
       ) as string[]
       if (!form.value.batch_number) {
+        ElMessage.error('普通领料必须选择批次')
+        return
+      }
+      if (!form.value.batch_number) {
         if (batches.length === 1) {
           form.value.batch_number = batches[0]
         } else {
@@ -330,6 +334,10 @@ async function submit() {
         reference_no: 'UI-PICK',
       })
     } else if (dlg.value === 'supplement') {
+      if (!form.value.batch_number) {
+        ElMessage.error('补料必须填写批次')
+        return
+      }
       await inventoryApi.trans({
         transaction_type: 'receive',
         material_id: material_id!,
@@ -339,6 +347,10 @@ async function submit() {
         reference_no: 'UI-SUPPLEMENT',
       })
     } else if (dlg.value === 'return') {
+      if (!form.value.batch_number) {
+        ElMessage.error('退料必须填写批次')
+        return
+      }
       await inventoryApi.trans({
         transaction_type: 'return',
         material_id: material_id!,
@@ -432,4 +444,3 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 </style>
-

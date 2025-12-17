@@ -2,7 +2,7 @@
   <el-config-provider namespace="el">
     <el-container style="height: 100vh">
       <el-header height="56px" class="app-header">
-        <div class="brand">MES 前端 · Vue3</div>
+        <div class="brand">MES 前端</div>
         <div class="spacer"></div>
         <el-button type="primary" link @click="goHome">主页</el-button>
         <el-button link @click="toggleDark">{{ isDark ? '浅色' : '深色' }}</el-button>
@@ -97,4 +97,3 @@ body,
   border-right: 1px solid #eee;
 }
 </style>
-
