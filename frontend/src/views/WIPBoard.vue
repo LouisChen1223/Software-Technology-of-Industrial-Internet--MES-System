@@ -1,9 +1,21 @@
-<template>
+﻿<template>
   <el-card>
     <template #header>
       <div class="card-header">
         <span>WIP 看板</span>
-        <el-button size="small" @click="refresh">刷新</el-button>
+        <div>
+          <el-select
+            v-model="statusFilter"
+            size="small"
+            style="width: 140px; margin-right: 8px"
+          >
+            <el-option label="全部状态" value="all" />
+            <el-option label="在制" value="在制" />
+            <el-option label="执行中" value="执行中" />
+            <el-option label="排队" value="排队" />
+          </el-select>
+          <el-button size="small" @click="refresh">刷新</el-button>
+        </div>
       </div>
     </template>
 
@@ -16,7 +28,7 @@
         v-model="batch"
         filterable
         clearable
-        placeholder="批次号（正向追溯）"
+        placeholder="鎵规鍙凤紙姝ｅ悜杩芥函锛?
         style="width: 240px; margin-right: 8px"
       >
         <el-option
@@ -26,13 +38,13 @@
           :value="b"
         />
       </el-select>
-      <el-button size="small" @click="doTraceBatch">追溯批次 → 成品</el-button>
+      <el-button size="small" @click="doTraceBatch">杩芥函鎵规 鈫?鎴愬搧</el-button>
 
       <el-select
         v-model="serial"
         filterable
         clearable
-        placeholder="序列号（正向/反向）"
+        placeholder="搴忓垪鍙凤紙姝ｅ悜/鍙嶅悜锛?
         style="width: 240px; margin: 0 8px"
       >
         <el-option
@@ -42,12 +54,12 @@
           :value="s"
         />
       </el-select>
-      <el-button size="small" @click="doTraceSerial">追溯序列</el-button>
+      <el-button size="small" @click="doTraceSerial">杩芥函搴忓垪</el-button>
 
-      <el-button size="small" type="primary" @click="clearTrace">清空追溯结果</el-button>
+      <el-button size="small" type="primary" @click="clearTrace">娓呯┖杩芥函缁撴灉</el-button>
     </div>
 
-    <el-table :data="traceRows" size="small" style="margin-top: 8px" height="30vh">
+        <el-table :data="traceRows" size="small" style="margin-top: 8px" height="30vh">
       <el-table-column prop="wo" label="工单" width="140" />
       <el-table-column prop="op" label="工序" />
       <el-table-column prop="material" label="物料" />
@@ -57,11 +69,11 @@
       <el-table-column prop="status" label="状态" width="120" />
     </el-table>
 
-    <el-table :data="rows" size="small" style="margin-top: 16px" height="40vh">
+        <el-table :data="filteredRows" size="small" style="margin-top: 16px" height="40vh">
       <el-table-column prop="wo" label="工单" width="140" />
       <el-table-column prop="op" label="工序" />
       <el-table-column prop="wip" label="在制数量" width="120" />
-      <el-table-column prop="started" label="开工时间" width="160" />
+      <el-table-column prop="started" label="开始时间" width="160" />
       <el-table-column prop="status" label="状态" width="120" />
     </el-table>
   </el-card>
@@ -89,18 +101,23 @@ const batch = ref('')
 const serial = ref('')
 const traceRows = ref<any[]>([])
 const batchOptions = ref<string[]>([])
-const serialOptions = ref<string[]>([])
+const serialOptions = ref<string[]>()
+const statusFilter = ref<string>("all")
+const filteredRows = computed<WipRow[]>(() => {
+  if (statusFilter.value === "all") return rows.value
+  return rows.value.filter(r => r.status === statusFilter.value)
+})([])
 
 async function loadWipData() {
   try {
-    // 获取 WIP 追踪数据
+    // 鑾峰彇 WIP 杩借釜鏁版嵁
     const resp = await http.get('/wip-tracking')
     const wipData = resp.data as any[]
 
     const batchSet = new Set<string>()
     const serialSet = new Set<string>()
 
-    // 转换为表格和下拉选项数据
+    // 杞崲涓鸿〃鏍煎拰涓嬫媺閫夐」鏁版嵁
     rows.value = wipData.map((item) => {
       if (item.batch_number) batchSet.add(item.batch_number)
       if (item.serial_number) serialSet.add(item.serial_number)
@@ -117,11 +134,11 @@ async function loadWipData() {
           : '-',
         status:
           item.status === 'in-process'
-            ? '执行中'
+            ? '鎵ц涓?
             : item.status === 'pending'
-            ? '排队'
+            ? '鎺掗槦'
             : item.status === 'wip'
-            ? '在制'
+            ? '鍦ㄥ埗'
             : item.status || '-',
       }
     })
@@ -129,7 +146,7 @@ async function loadWipData() {
     batchOptions.value = Array.from(batchSet)
     serialOptions.value = Array.from(serialSet)
   } catch (error) {
-    console.error('加载 WIP 数据失败:', error)
+    console.error('鍔犺浇 WIP 鏁版嵁澶辫触:', error)
     rows.value = []
     batchOptions.value = []
     serialOptions.value = []
@@ -144,7 +161,7 @@ function renderChart() {
 
   if (rows.value.length === 0) {
     chart.setOption({
-      title: { text: '暂无数据', left: 'center', top: 'center' },
+      title: { text: '鏆傛棤鏁版嵁', left: 'center', top: 'center' },
     })
     return
   }
@@ -158,7 +175,7 @@ function renderChart() {
         rotate: 0,
       },
     },
-    yAxis: { type: 'value', name: '在制数量' },
+    yAxis: { type: 'value', name: '鍦ㄥ埗鏁伴噺' },
     series: [
       {
         type: 'bar',
@@ -222,3 +239,6 @@ onMounted(refresh)
   align-items: center;
 }
 </style>
+
+
+
